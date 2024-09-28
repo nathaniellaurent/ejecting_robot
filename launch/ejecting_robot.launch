@@ -1,0 +1,15 @@
+<launch>
+  <node pkg="ejecting_robot" exec="talker" name="talker_name" namespace="talker1">
+  <param name="camera_index" value="0"/>
+  <!-- <param name="rstp_url" value="http://192.168.29.201:81/stream"/> -->
+  <param name="rstp_url" value="http://192.168.104.62:81/stream"/>
+
+  </node>
+  
+  <node pkg="ejecting_robot" exec="talker" name="talker_name" namespace="talker1">
+  <param name="camera_index" value="1"/>
+  <!-- <param name="rstp_url" value="http://192.168.29.102:81/stream"/> -->
+  <param name="rstp_url" value="http://192.168.104.6:81/stream"/>
+
+  </node>
+</launch>
