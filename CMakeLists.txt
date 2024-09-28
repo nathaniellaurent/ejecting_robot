@@ -15,14 +15,14 @@ find_package(image_transport REQUIRED)
 find_package(OpenCV REQUIRED)
 
 
-add_executable(talker src/publisher_member_function.cpp)
-ament_target_dependencies(talker rclcpp std_msgs sensor_msgs cv_bridge image_transport OpenCV)
+add_executable(camera_publisher src/camera_pub.cpp)
+ament_target_dependencies(camera_publisher rclcpp std_msgs sensor_msgs cv_bridge image_transport OpenCV)
 
 add_executable(listener src/subscriber_member_function.cpp)
 ament_target_dependencies(listener rclcpp std_msgs sensor_msgs cv_bridge image_transport OpenCV)
 
 install(TARGETS
-  talker
+camera_publisher
   listener
   DESTINATION lib/${PROJECT_NAME})
 
