@@ -34,13 +34,9 @@ public:
     CameraPublisher()
         : Node("minimal_publisher"), count_(0)
     {
-        
 
-    
         this->declare_parameter("camera_index", rclcpp::PARAMETER_INTEGER);
         this->declare_parameter("rstp_url", rclcpp::PARAMETER_STRING);
-        
-        
 
         rclcpp::Parameter camera_param = this->get_parameter("camera_index");
         camera_index = camera_param.as_int();
@@ -49,6 +45,18 @@ public:
         rtsp_url = rstp_url_param.as_string();
 
         cv::VideoCapture vidCap(rtsp_url);
+        while (!vidCap.isOpened())
+        {
+            try
+            {
+                cv::VideoCapture vidCap(rtsp_url);
+            }
+            catch (std::exception e)
+            {
+                RCLCPP_DEBUG_STREAM(this->get_logger(), "Camera " << camera_index << " failed to connect. Trying Again");
+                
+            }
+        }
         cap = std::make_shared<cv::VideoCapture>(vidCap);
 
         publisher_ = this->create_publisher<sensor_msgs::msg::Image>("image" + std::to_string(camera_index), 0);
@@ -60,23 +68,22 @@ private:
     void timer_callback()
     {
         cv::Mat frame;
-        
-        
+
         cap.get()->read(frame);
         cv::imshow("ID: " + std::to_string(camera_index), frame);
         cv::waitKey(1);
 
-        
-
         auto message = std_msgs::msg::String();
-        message.data = "ID: " + std::to_string(camera_index) + " Hello, world! " + std::to_string(count_++);
+        message.data = "ID: " + std::to_string(camera_index) + " Count: " + std::to_string(count_++);
         RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
 
         cv_bridge::CvImage cvImage;
         cvImage.header.stamp = this->now();
         cvImage.image = frame;
-        
-        publisher_->publish(*cvImage.toImageMsg());
+        sensor_msgs::msg::Image image_msg = *cvImage.toImageMsg();
+        image_msg.set__encoding("bgr8");
+
+        publisher_->publish(image_msg);
     }
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
