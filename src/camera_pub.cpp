@@ -67,9 +67,13 @@ public:
 private:
     void timer_callback()
     {
+        cv::Mat before_frame;
         cv::Mat frame;
 
+
         cap.get()->read(frame);
+        cv::flip(frame, before_frame, 0) ;
+        cv::flip(before_frame, frame, 1) ;
         cv::imshow("ID: " + std::to_string(camera_index), frame);
         cv::waitKey(1);
 

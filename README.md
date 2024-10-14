@@ -14,5 +14,11 @@ To build:
 To run for one camera:
 
 ```bash
-ros2 run ejecting_robot camera_publisher --ros-args -p camera_index:=1 rstp_url:="http://192.168.83.6:81/stream" 
+ros2 run ejecting_robot camera_publisher --ros-args -p camera_index:=1 -p rstp_url:=http://192.168.83.6:81/stream
+```
+
+To run for both cameras (IP addresses stored in launch file):
+
+```bash
+ros2 launch ejecting_robot ejecting_robot.launch
 ```
