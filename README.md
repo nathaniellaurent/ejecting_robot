@@ -22,3 +22,9 @@ To run for both cameras (IP addresses stored in launch file):
 ```bash
 ros2 launch ejecting_robot ejecting_robot.launch
 ```
+
+To run agent:
+
+```bash
+ros2 run micro_ros_agent micro_ros_agent serial --dev USB0
+```
