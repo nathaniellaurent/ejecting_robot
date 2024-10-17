@@ -1,27 +1,44 @@
 <launch>
-  <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_0" namespace="camera_publisher_0">
-  <param name="camera_index" value="0"/>
-  <!-- <param name="rstp_url" value="http://192.168.29.201:81/stream"/> -->
-  <param name="rstp_url" value="http://192.168.212.62:81/stream"/>
+    <arg name="run_cameras" default="true"/>
+    <!-- Set to wifi or serial -->
+    <arg name="run_MPU" default='wifi'/>
+   
 
-  </node>
+    <group if="$(var run_cameras)">
+        <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_0" namespace="camera_publisher_0">
+            <param name="camera_index" value="0"/>
+        <!-- <param name="rstp_url" value="http://192.168.29.201:81/stream"/> -->
+        <param name="rstp_url" value="http://192.168.212.62:81/stream"/>
+
+        </node>
+        
+        <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_1" namespace="camera_publisher_1">
+            <param name="camera_index" value="1"/>
+        <!-- <param name="rstp_url" value="http://192.168.29.102:81/stream"/> -->
+        <param name="rstp_url" value="http://192.168.212.6:81/stream"/>
+
+        </node>
+    </group>
   
-  <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_1" namespace="camera_publisher_1">
-  <param name="camera_index" value="1"/>
-  <!-- <param name="rstp_url" value="http://192.168.29.102:81/stream"/> -->
-  <param name="rstp_url" value="http://192.168.212.6:81/stream"/>
-
-  </node>
-
-  <!-- <node pkg="rqt_gui" exec="rqt_gui" name="rqt_gui"  output="screen"/> -->
 
 
+    <group if="$(eval '\'$(var run_MPU)\' == \'serial\'')">
 
-  <!-- arguments: {'udp4 -p 8888'} -->
+        <node pkg="micro_ros_agent" exec="micro_ros_agent" name="microros_serial" namespace="microros_serial" args="serial --dev /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0" output="screen">
 
-  <node pkg="micro_ros_agent" exec="micro_ros_agent" name="microros_serial" namespace="microros_serial" args="serial --dev /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0" output="screen">
+        </node>
+    </group>
 
-  </node>
+    <group if="$(eval '\'$(var run_MPU)\'  ==  \'wifi\'')">
+
+        <node pkg="micro_ros_agent" exec="micro_ros_agent" name="microros_serial" namespace="microros_serial" args="udp4 --port 8888" output="screen">
+
+        </node>
+    </group>
+
+    
+
+  
 
 
 </launch>
