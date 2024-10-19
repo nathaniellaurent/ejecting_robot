@@ -21,14 +21,18 @@ ament_target_dependencies(camera_publisher rclcpp std_msgs sensor_msgs cv_bridge
 add_executable(listener src/subscriber_member_function.cpp)
 ament_target_dependencies(listener rclcpp std_msgs sensor_msgs cv_bridge image_transport OpenCV)
 
+add_executable(teleop src/teleop.cpp)
+ament_target_dependencies(teleop rclcpp std_msgs sensor_msgs)
+
 install(TARGETS
-camera_publisher
-  listener
-  DESTINATION lib/${PROJECT_NAME})
+    camera_publisher
+    listener
+    teleop
+    DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}/
+    launch
+    DESTINATION share/${PROJECT_NAME}/
 )
 
 

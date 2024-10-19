@@ -24,6 +24,7 @@
 #include <rclc/executor.h>
 
 #include <std_msgs/msg/float32.h>
+#include <std_msgs/msg/int32.h>
 #include <geometry_msgs/msg/vector3.h>
 
 // #if !defined(MICRO_ROS_TRANSPORT_ARDUINO_SERIAL)
@@ -33,10 +34,15 @@
 rcl_publisher_t resultG_publisher;
 rcl_publisher_t accel_publisher;
 rcl_publisher_t gyro_publisher;
+rcl_publisher_t out_publisher;
+
+rcl_subscription_t test_subscription;
 
 std_msgs__msg__Float32 resultG_msg_float;
 geometry_msgs__msg__Vector3 accel_msg;
 geometry_msgs__msg__Vector3 gryo_msg;
+std_msgs__msg__Int32 out_msg;
+std_msgs__msg__Int32 test_msg;
 
 rclc_executor_t executor;
 rclc_support_t support;
@@ -104,7 +110,44 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
         RCSOFTCHECK(rcl_publish(&resultG_publisher, &resultG_msg_float, NULL));
         RCSOFTCHECK(rcl_publish(&accel_publisher, &accel_msg, NULL));
         RCSOFTCHECK(rcl_publish(&gyro_publisher, &gryo_msg, NULL));
+        RCSOFTCHECK(rcl_publish(&out_publisher, &out_msg, NULL));
     }
+}
+
+void subscription_callback(const void *msgin)
+{
+    const std_msgs__msg__Int32 *test_msg = (const std_msgs__msg__Int32 *)msgin;
+
+    int value = test_msg->data;
+    out_msg.data = value;
+
+    xyzFloat gValue = myMPU6500.getGValues();
+    xyzFloat gyr = myMPU6500.getGyrValues();
+    float temp = myMPU6500.getTemperature();
+    float resultantG = myMPU6500.getResultantG(gValue);
+
+    resultG_msg_float.data = int(resultantG * 100);
+
+    // imu_msg.linear_acceleration.x = gValue.x;
+    // imu_msg.linear_acceleration.y = gValue.y;
+    // imu_msg.linear_acceleration.z = gValue.z;
+
+    // imu_msg.angular_velocity.x = gyr.x;
+    // imu_msg.angular_velocity.y = gyr.y;
+    // imu_msg.angular_velocity.z = gyr.z;
+
+    accel_msg.x = 9.81 * gValue.x;
+    accel_msg.y = 9.81 * gValue.y;
+    accel_msg.z = 9.81 * gValue.z;
+
+    gryo_msg.x = gyr.x;
+    gryo_msg.y = gyr.y;
+    gryo_msg.z = gyr.z;
+
+    RCSOFTCHECK(rcl_publish(&resultG_publisher, &resultG_msg_float, NULL));
+    RCSOFTCHECK(rcl_publish(&accel_publisher, &accel_msg, NULL));
+    RCSOFTCHECK(rcl_publish(&gyro_publisher, &gryo_msg, NULL));
+    RCSOFTCHECK(rcl_publish(&out_publisher, &out_msg, NULL));
 }
 
 /* There are several ways to create your MPU6500 object:
@@ -121,9 +164,10 @@ void setup()
     Wire.begin();
     // Configure serial transport
     Serial.begin(115200);
+    Serial.println("Starting micro_ros...");
     //   set_microros_serial_transports(Serial);
 
-    IPAddress agent_ip(192, 168, 0, 58);
+    IPAddress agent_ip(192, 168, 57, 58);
     size_t agent_port = 8888;
 
     char ssid[] = "Pixel_5317";
@@ -160,6 +204,22 @@ void setup()
         ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Vector3),
         "MPU_6500/Gyroscope"));
 
+    RCCHECK(rclc_publisher_init_best_effort(
+        &out_publisher,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+        "out_topic"));
+
+    out_msg.data = 1;
+
+    Serial.println("Starting subscriber...");
+
+    RCCHECK(rclc_subscription_init_best_effort(
+        &test_subscription,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+        "in_topic"));
+
     // create timer,
     const unsigned int timer_timeout = 10;
     RCCHECK(rclc_timer_init_default(
@@ -170,15 +230,29 @@ void setup()
 
     // create executor
     RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-    RCCHECK(rclc_executor_add_timer(&executor, &timer));
+    rcl_ret_t rc = rclc_executor_add_subscription(&executor, &test_subscription, &test_msg, &subscription_callback, ALWAYS);
+
+    if (RCL_RET_OK != rc)
+    {
+        Serial.println("Error adding subscriber to executor.");
+    }
+    else
+        Serial.println("Successfully added subscriber to executor.");
+
+    // if (RCL_RET_OK != rc2)
+    // {
+    //     Serial.println("Error adding timer to executor.");
+    // }
+    // else
+    //     Serial.println("Successfully added timer to executor.");
 
     if (!myMPU6500.init())
     {
-        // Serial.println("MPU6500 does not respond");
+        Serial.println("MPU6500 does not respond");
     }
     else
     {
-        // Serial.println("MPU6500 is connected");
+        Serial.println("MPU6500 is connected");
     }
 
     /* The slope of the curve of acceleration vs measured values fits quite well to the theoretical
@@ -293,8 +367,8 @@ void setup()
 
 void loop()
 {
-    delay(100);
-    RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100)));
+    delay(1);
+    RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1)));
 
     //   Serial.println("Acceleration in g (x,y,z):");
     //   Serial.print(gValue.x);
