@@ -26,6 +26,7 @@
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int32.h>
 #include <geometry_msgs/msg/vector3.h>
+#include <sensor_msgs/msg/joy.h>
 
 // #if !defined(MICRO_ROS_TRANSPORT_ARDUINO_SERIAL)
 // #error This example is only avaliable for Arduino framework with serial transport.
@@ -41,8 +42,8 @@ rcl_subscription_t test_subscription;
 std_msgs__msg__Float32 resultG_msg_float;
 geometry_msgs__msg__Vector3 accel_msg;
 geometry_msgs__msg__Vector3 gryo_msg;
-std_msgs__msg__Int32 out_msg;
-std_msgs__msg__Int32 test_msg;
+sensor_msgs__msg__Joy out_msg;
+sensor_msgs__msg__Joy in_msg;
 
 rclc_executor_t executor;
 rclc_support_t support;
@@ -116,10 +117,9 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 
 void subscription_callback(const void *msgin)
 {
-    const std_msgs__msg__Int32 *test_msg = (const std_msgs__msg__Int32 *)msgin;
+    const sensor_msgs__msg__Joy *in_msg = (const sensor_msgs__msg__Joy *)msgin;
 
-    int value = test_msg->data;
-    out_msg.data = value;
+    out_msg = *in_msg;
 
     xyzFloat gValue = myMPU6500.getGValues();
     xyzFloat gyr = myMPU6500.getGyrValues();
@@ -207,18 +207,19 @@ void setup()
     RCCHECK(rclc_publisher_init_best_effort(
         &out_publisher,
         &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+        rosidl_typesupport_c__get_message_type_support_handle__sensor_msgs__msg__Joy(),
         "out_topic"));
 
-    out_msg.data = 1;
+        
 
+    
     Serial.println("Starting subscriber...");
 
-    RCCHECK(rclc_subscription_init_best_effort(
-        &test_subscription,
-        &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-        "in_topic"));
+    // RCCHECK(rclc_subscription_init_best_effort(
+    //     &test_subscription,
+    //     &node,
+    //     rosidl_typesupport_c__get_message_type_support_handle__sensor_msgs__msg__Joy(),
+    //     "in_topic"));
 
     // create timer,
     const unsigned int timer_timeout = 10;
@@ -230,14 +231,14 @@ void setup()
 
     // create executor
     RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-    rcl_ret_t rc = rclc_executor_add_subscription(&executor, &test_subscription, &test_msg, &subscription_callback, ALWAYS);
+    // rcl_ret_t rc = rclc_executor_add_subscription(&executor, &test_subscription, &in_msg, &subscription_callback, ALWAYS);
 
-    if (RCL_RET_OK != rc)
-    {
-        Serial.println("Error adding subscriber to executor.");
-    }
-    else
-        Serial.println("Successfully added subscriber to executor.");
+    // if (RCL_RET_OK != rc)
+    // {
+    //     Serial.println("Error adding subscriber to executor.");
+    // }
+    // else
+    //     Serial.println("Successfully added subscriber to executor.");
 
     // if (RCL_RET_OK != rc2)
     // {

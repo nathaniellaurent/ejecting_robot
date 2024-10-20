@@ -18,7 +18,12 @@
 #include <string>
 
 #include "rclcpp/rclcpp.hpp"
+#include <std_msgs/msg/int32_multi_array.hpp>
+#include <sensor_msgs/msg/joy.hpp>
 #include <std_msgs/msg/int32.hpp>
+
+
+using std::placeholders::_1;
 
 using namespace std::chrono_literals;
 
@@ -29,29 +34,34 @@ class TeleopPublisher : public rclcpp::Node
 {
 public:
     TeleopPublisher()
-        : Node("minimal_publisher"), count_(0)
+        : Node("minimal_publisher")
     {
 
-
-        publisher_ = this->create_publisher<std_msgs::msg::Int32>("in_topic", 0);
-        timer_ = this->create_wall_timer(
-            1ms, std::bind(&TeleopPublisher::timer_callback, this));
+        subscription_ = this->create_subscription<sensor_msgs::msg::Joy>(
+      "joy", 1, std::bind(&TeleopPublisher::subscriberer_callback, this, _1));
+        publisher_ = this->create_publisher<std_msgs::msg::Int32MultiArray>("in_topic", 0);
     }
 
 private:
-    void timer_callback()
+    void subscriberer_callback(const sensor_msgs::msg::Joy::SharedPtr msg) const
     {
-        count_++;
-        auto message = std_msgs::msg::Int32();
-        message.data = count_;
-        RCLCPP_INFO(this->get_logger(), "Publishing: '%d'", message.data);
+        std::vector<int> buttons = msg->buttons;
+
+        auto message = std_msgs::msg::Int32MultiArray();
+        message.data = buttons;
+        std_msgs::msg::MultiArrayDimension dim;
+        dim.label = "buttons";
+        dim.size = buttons.size();
+        dim.stride = buttons.size();
+        message.layout.dim.push_back(dim);
+
         publisher_->publish(message);
         
         
     }
     rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr publisher_;
-    size_t count_;
+    rclcpp::Publisher<std_msgs::msg::Int32MultiArray>::SharedPtr publisher_;
+    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr subscription_;
 
     std::string rtsp_url;
     int camera_index;

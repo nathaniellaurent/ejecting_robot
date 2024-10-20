@@ -1,7 +1,8 @@
 <launch>
-    <arg name="run_cameras" default="true"/>
+    <arg name="run_cameras" default="false"/>
     <!-- Set to wifi or serial -->
     <arg name="run_MPU" default='wifi'/>
+    <arg name="run_teleop" default='true'/>
    
 
     <group if="$(var run_cameras)">
@@ -34,6 +35,14 @@
         <node pkg="micro_ros_agent" exec="micro_ros_agent" name="microros_serial" namespace="microros_serial" args="udp4 --port 8888" output="screen">
 
         </node>
+    </group>
+
+    <group if="$(var run_teleop)">
+        <include file="$(find-pkg-share p9n_bringup)/launch/teleop.launch.py"/>
+        <node pkg="ejecting_robot" exec="teleop" name="teleop_republisher"/>
+
+        
+        
     </group>
 
     
