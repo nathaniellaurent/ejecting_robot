@@ -25,8 +25,8 @@
 
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int32.h>
+#include <std_msgs/msg/int32_multi_array.h>
 #include <geometry_msgs/msg/vector3.h>
-#include <sensor_msgs/msg/joy.h>
 
 // #if !defined(MICRO_ROS_TRANSPORT_ARDUINO_SERIAL)
 // #error This example is only avaliable for Arduino framework with serial transport.
@@ -42,10 +42,14 @@ rcl_subscription_t test_subscription;
 std_msgs__msg__Float32 resultG_msg_float;
 geometry_msgs__msg__Vector3 accel_msg;
 geometry_msgs__msg__Vector3 gryo_msg;
-sensor_msgs__msg__Joy out_msg;
-sensor_msgs__msg__Joy in_msg;
+std_msgs__msg__Int32 out_msg;
 
+int32_t buttons[13] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+std_msgs__msg__Int32MultiArray in_msg;
 rclc_executor_t executor;
+
+rclc_executor_t executor2;
 rclc_support_t support;
 rcl_allocator_t allocator;
 rcl_node_t node;
@@ -83,6 +87,7 @@ void error_loop()
 void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 {
     RCLC_UNUSED(last_call_time);
+    Serial.println("Timer callback called");
     if (timer != NULL)
     {
         xyzFloat gValue = myMPU6500.getGValues();
@@ -117,36 +122,13 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 
 void subscription_callback(const void *msgin)
 {
-    const sensor_msgs__msg__Joy *in_msg = (const sensor_msgs__msg__Joy *)msgin;
+    Serial.println("Callback called");
+    const std_msgs__msg__Int32MultiArray *in_msg = (const std_msgs__msg__Int32MultiArray *)msgin;
+    int32_t *data = in_msg->data.data;
+    Serial.println("Publishing: " + *data);
 
-    out_msg = *in_msg;
+    out_msg.data = int(*data);
 
-    xyzFloat gValue = myMPU6500.getGValues();
-    xyzFloat gyr = myMPU6500.getGyrValues();
-    float temp = myMPU6500.getTemperature();
-    float resultantG = myMPU6500.getResultantG(gValue);
-
-    resultG_msg_float.data = int(resultantG * 100);
-
-    // imu_msg.linear_acceleration.x = gValue.x;
-    // imu_msg.linear_acceleration.y = gValue.y;
-    // imu_msg.linear_acceleration.z = gValue.z;
-
-    // imu_msg.angular_velocity.x = gyr.x;
-    // imu_msg.angular_velocity.y = gyr.y;
-    // imu_msg.angular_velocity.z = gyr.z;
-
-    accel_msg.x = 9.81 * gValue.x;
-    accel_msg.y = 9.81 * gValue.y;
-    accel_msg.z = 9.81 * gValue.z;
-
-    gryo_msg.x = gyr.x;
-    gryo_msg.y = gyr.y;
-    gryo_msg.z = gyr.z;
-
-    RCSOFTCHECK(rcl_publish(&resultG_publisher, &resultG_msg_float, NULL));
-    RCSOFTCHECK(rcl_publish(&accel_publisher, &accel_msg, NULL));
-    RCSOFTCHECK(rcl_publish(&gyro_publisher, &gryo_msg, NULL));
     RCSOFTCHECK(rcl_publish(&out_publisher, &out_msg, NULL));
 }
 
@@ -167,7 +149,19 @@ void setup()
     Serial.println("Starting micro_ros...");
     //   set_microros_serial_transports(Serial);
 
-    IPAddress agent_ip(192, 168, 57, 58);
+    in_msg.data.capacity = 13;
+    in_msg.data.size = 0;
+    in_msg.data.data = (int32_t *)malloc(in_msg.data.capacity * sizeof(int32_t));
+
+    in_msg.layout.dim.capacity = 1;
+    in_msg.layout.dim.size = 0;
+    in_msg.layout.dim.data = (std_msgs__msg__MultiArrayDimension *)malloc(in_msg.layout.dim.capacity * sizeof(std_msgs__msg__MultiArrayDimension));
+
+    in_msg.layout.dim.data[0].label.capacity = 10;
+    in_msg.layout.dim.data[0].label.size = 0;
+    in_msg.layout.dim.data[0].label.data = (char *)malloc(in_msg.layout.dim.data[0].label.capacity * sizeof(char));
+
+    IPAddress agent_ip(192, 168, 189, 58);
     size_t agent_port = 8888;
 
     char ssid[] = "Pixel_5317";
@@ -207,19 +201,16 @@ void setup()
     RCCHECK(rclc_publisher_init_best_effort(
         &out_publisher,
         &node,
-        rosidl_typesupport_c__get_message_type_support_handle__sensor_msgs__msg__Joy(),
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
         "out_topic"));
 
-        
-
-    
     Serial.println("Starting subscriber...");
 
-    // RCCHECK(rclc_subscription_init_best_effort(
-    //     &test_subscription,
-    //     &node,
-    //     rosidl_typesupport_c__get_message_type_support_handle__sensor_msgs__msg__Joy(),
-    //     "in_topic"));
+    RCCHECK(rclc_subscription_init_best_effort(
+        &test_subscription,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32MultiArray),
+        "in_topic"));
 
     // create timer,
     const unsigned int timer_timeout = 10;
@@ -231,14 +222,17 @@ void setup()
 
     // create executor
     RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-    // rcl_ret_t rc = rclc_executor_add_subscription(&executor, &test_subscription, &in_msg, &subscription_callback, ALWAYS);
+    RCCHECK(rclc_executor_init(&executor2, &support.context, 1, &allocator));
 
-    // if (RCL_RET_OK != rc)
-    // {
-    //     Serial.println("Error adding subscriber to executor.");
-    // }
-    // else
-    //     Serial.println("Successfully added subscriber to executor.");
+    rcl_ret_t rc = rclc_executor_add_subscription(&executor, &test_subscription, &in_msg, &subscription_callback, ALWAYS);
+    rcl_ret_t rc2 = rclc_executor_add_timer(&executor2, &timer);
+
+    if (RCL_RET_OK != rc)
+    {
+        Serial.println("Error adding subscriber to executor.");
+    }
+    else
+        Serial.println("Successfully added subscriber to executor.");
 
     // if (RCL_RET_OK != rc2)
     // {
@@ -370,6 +364,7 @@ void loop()
 {
     delay(1);
     RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1)));
+    RCSOFTCHECK(rclc_executor_spin_some(&executor2, RCL_MS_TO_NS(1)));
 
     //   Serial.println("Acceleration in g (x,y,z):");
     //   Serial.print(gValue.x);
