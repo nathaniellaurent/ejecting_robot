@@ -26,6 +26,7 @@
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/int32.h>
 #include <std_msgs/msg/int32_multi_array.h>
+#include <std_msgs/msg/float32_multi_array.h>
 #include <geometry_msgs/msg/vector3.h>
 
 // #if !defined(MICRO_ROS_TRANSPORT_ARDUINO_SERIAL)
@@ -37,19 +38,26 @@ rcl_publisher_t accel_publisher;
 rcl_publisher_t gyro_publisher;
 rcl_publisher_t out_publisher;
 
-rcl_subscription_t test_subscription;
+int32_t ledPin = 15;
+
+rcl_subscription_t buttons_subscription;
+rcl_subscription_t axes_subscription;
 
 std_msgs__msg__Float32 resultG_msg_float;
 geometry_msgs__msg__Vector3 accel_msg;
 geometry_msgs__msg__Vector3 gryo_msg;
 std_msgs__msg__Int32 out_msg;
 
-int32_t buttons[13] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+int32_t *buttons;
+float axes_list[3];
+float *axes = axes_list;
 
-std_msgs__msg__Int32MultiArray in_msg;
-rclc_executor_t executor;
+std_msgs__msg__Int32MultiArray buttons_msg;
+std_msgs__msg__Float32MultiArray axes_msg;
+rclc_executor_t timer_executor;
 
-rclc_executor_t executor2;
+rclc_executor_t buttons_executor;
+rclc_executor_t axes_executor;
 rclc_support_t support;
 rcl_allocator_t allocator;
 rcl_node_t node;
@@ -120,14 +128,35 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
     }
 }
 
-void subscription_callback(const void *msgin)
+void axes_callback(const void *msgin)
 {
-    Serial.println("Callback called");
-    const std_msgs__msg__Int32MultiArray *in_msg = (const std_msgs__msg__Int32MultiArray *)msgin;
-    int32_t *data = in_msg->data.data;
-    Serial.println("Publishing: " + *data);
+    Serial.println("Callback axes called");
+    const std_msgs__msg__Float32MultiArray *axes_msg = (const std_msgs__msg__Float32MultiArray *)msgin;
+    axes = axes_msg->data.data;
 
-    out_msg.data = int(*data);
+    
+
+    if (axes[0] > 0.5)
+    {
+        digitalWrite(ledPin, HIGH);
+    }
+    else
+    {
+        digitalWrite(ledPin, LOW);
+    }
+
+}
+
+void buttons_callback(const void *msgin)
+{
+    Serial.println("Callback buttons called");
+    const std_msgs__msg__Int32MultiArray *buttons_msg = (const std_msgs__msg__Int32MultiArray *)msgin;
+    buttons = buttons_msg->data.data;
+    Serial.println("Publishing: " + buttons[0]);
+
+    
+
+    out_msg.data = int(buttons[0]);
 
     RCSOFTCHECK(rcl_publish(&out_publisher, &out_msg, NULL));
 }
@@ -147,21 +176,35 @@ void setup()
     // Configure serial transport
     Serial.begin(115200);
     Serial.println("Starting micro_ros...");
+
+    pinMode(ledPin, OUTPUT);
     //   set_microros_serial_transports(Serial);
 
-    in_msg.data.capacity = 13;
-    in_msg.data.size = 0;
-    in_msg.data.data = (int32_t *)malloc(in_msg.data.capacity * sizeof(int32_t));
+    buttons_msg.data.capacity = 13;
+    buttons_msg.data.size = 0;
+    buttons_msg.data.data = (int32_t *)malloc(buttons_msg.data.capacity * sizeof(int32_t));
 
-    in_msg.layout.dim.capacity = 1;
-    in_msg.layout.dim.size = 0;
-    in_msg.layout.dim.data = (std_msgs__msg__MultiArrayDimension *)malloc(in_msg.layout.dim.capacity * sizeof(std_msgs__msg__MultiArrayDimension));
+    buttons_msg.layout.dim.capacity = 1;
+    buttons_msg.layout.dim.size = 0;
+    buttons_msg.layout.dim.data = (std_msgs__msg__MultiArrayDimension *)malloc(buttons_msg.layout.dim.capacity * sizeof(std_msgs__msg__MultiArrayDimension));
 
-    in_msg.layout.dim.data[0].label.capacity = 10;
-    in_msg.layout.dim.data[0].label.size = 0;
-    in_msg.layout.dim.data[0].label.data = (char *)malloc(in_msg.layout.dim.data[0].label.capacity * sizeof(char));
+    buttons_msg.layout.dim.data[0].label.capacity = 10;
+    buttons_msg.layout.dim.data[0].label.size = 0;
+    buttons_msg.layout.dim.data[0].label.data = (char *)malloc(buttons_msg.layout.dim.data[0].label.capacity * sizeof(char));
 
-    IPAddress agent_ip(192, 168, 189, 58);
+    axes_msg.data.capacity = 8;
+    axes_msg.data.size = 0;
+    axes_msg.data.data = (float *)malloc(buttons_msg.data.capacity * sizeof(float));
+
+    axes_msg.layout.dim.capacity = 1;
+    axes_msg.layout.dim.size = 0;
+    axes_msg.layout.dim.data = (std_msgs__msg__MultiArrayDimension *)malloc(buttons_msg.layout.dim.capacity * sizeof(std_msgs__msg__MultiArrayDimension));
+
+    axes_msg.layout.dim.data[0].label.capacity = 10;
+    axes_msg.layout.dim.data[0].label.size = 0;
+    axes_msg.layout.dim.data[0].label.data = (char *)malloc(buttons_msg.layout.dim.data[0].label.capacity * sizeof(char));
+
+    IPAddress agent_ip(192, 168, 39, 58);
     size_t agent_port = 8888;
 
     char ssid[] = "Pixel_5317";
@@ -207,10 +250,16 @@ void setup()
     Serial.println("Starting subscriber...");
 
     RCCHECK(rclc_subscription_init_best_effort(
-        &test_subscription,
+        &buttons_subscription,
         &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32MultiArray),
-        "in_topic"));
+        "buttons_in"));
+
+    RCCHECK(rclc_subscription_init_best_effort(
+        &axes_subscription,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32MultiArray),
+        "axes_in"));
 
     // create timer,
     const unsigned int timer_timeout = 10;
@@ -221,25 +270,37 @@ void setup()
         timer_callback));
 
     // create executor
-    RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-    RCCHECK(rclc_executor_init(&executor2, &support.context, 1, &allocator));
+    RCCHECK(rclc_executor_init(&timer_executor, &support.context, 1, &allocator));
+    RCCHECK(rclc_executor_init(&buttons_executor, &support.context, 1, &allocator));
+    RCCHECK(rclc_executor_init(&axes_executor, &support.context, 1, &allocator));
 
-    rcl_ret_t rc = rclc_executor_add_subscription(&executor, &test_subscription, &in_msg, &subscription_callback, ALWAYS);
-    rcl_ret_t rc2 = rclc_executor_add_timer(&executor2, &timer);
+    rcl_ret_t buttons_rc = rclc_executor_add_subscription(&buttons_executor, &buttons_subscription, &buttons_msg, &buttons_callback, ALWAYS);
+    rcl_ret_t axes_rc = rclc_executor_add_subscription(&axes_executor, &axes_subscription, &buttons_msg, &axes_callback, ALWAYS);
 
-    if (RCL_RET_OK != rc)
+    rcl_ret_t rc2 = rclc_executor_add_timer(&timer_executor, &timer);
+
+    if (RCL_RET_OK != buttons_rc)
     {
-        Serial.println("Error adding subscriber to executor.");
+        Serial.println("Error adding buttons subscriber to executor.");
     }
     else
-        Serial.println("Successfully added subscriber to executor.");
+        Serial.println("Successfully added buttons subscriber to executor.");
 
-    // if (RCL_RET_OK != rc2)
-    // {
-    //     Serial.println("Error adding timer to executor.");
-    // }
-    // else
-    //     Serial.println("Successfully added timer to executor.");
+    if (RCL_RET_OK != axes_rc)
+    {
+        Serial.println("Error adding axes subscriber to executor.");
+    }
+    else
+        Serial.println("Successfully added axes subscriber to executor.");
+
+        
+
+    if (RCL_RET_OK != rc2)
+    {
+        Serial.println("Error adding timer to executor.");
+    }
+    else
+        Serial.println("Successfully added timer to executor.");
 
     if (!myMPU6500.init())
     {
@@ -363,8 +424,9 @@ void setup()
 void loop()
 {
     delay(1);
-    RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1)));
-    RCSOFTCHECK(rclc_executor_spin_some(&executor2, RCL_MS_TO_NS(1)));
+    RCSOFTCHECK(rclc_executor_spin_some(&timer_executor, RCL_MS_TO_NS(1)));
+    RCSOFTCHECK(rclc_executor_spin_some(&buttons_executor, RCL_MS_TO_NS(1)));
+    RCSOFTCHECK(rclc_executor_spin_some(&axes_executor, RCL_MS_TO_NS(1)));
 
     //   Serial.println("Acceleration in g (x,y,z):");
     //   Serial.print(gValue.x);
