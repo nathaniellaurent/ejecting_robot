@@ -38,8 +38,12 @@
     </group>
 
     <group if="$(var run_teleop)">
-        <include file="$(find-pkg-share p9n_bringup)/launch/teleop.launch.py"/>
+        <!-- <include file="$(find-pkg-share p9n_bringup)/launch/teleop.launch.py"/> -->
         <node pkg="ejecting_robot" exec="teleop" name="teleop_republisher"/>
+        <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
+            <param name="deadzone" value="0.1"/>
+        </node>
+
 
         
         

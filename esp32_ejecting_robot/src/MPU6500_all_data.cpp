@@ -15,6 +15,7 @@
 
 #include <MPU6500_WE.h>
 #include <Wire.h>
+#include <Deneyap_Servo.h>
 
 #include <Arduino.h>
 #include <micro_ros_platformio.h>
@@ -32,6 +33,8 @@
 // #if !defined(MICRO_ROS_TRANSPORT_ARDUINO_SERIAL)
 // #error This example is only avaliable for Arduino framework with serial transport.
 // #endif
+
+Servo myservo;
 
 rcl_publisher_t resultG_publisher;
 rcl_publisher_t accel_publisher;
@@ -135,15 +138,9 @@ void axes_callback(const void *msgin)
     axes = axes_msg->data.data;
 
     
-
-    if (axes[0] > 0.5)
-    {
-        digitalWrite(ledPin, HIGH);
-    }
-    else
-    {
-        digitalWrite(ledPin, LOW);
-    }
+    myservo.write(90*axes[0]/0.75+ 90);            
+    
+    
 
 }
 
@@ -153,6 +150,13 @@ void buttons_callback(const void *msgin)
     const std_msgs__msg__Int32MultiArray *buttons_msg = (const std_msgs__msg__Int32MultiArray *)msgin;
     buttons = buttons_msg->data.data;
     Serial.println("Publishing: " + buttons[0]);
+
+    if(buttons[0] == 1){
+        digitalWrite(19,HIGH);
+    }
+    else{
+        digitalWrite(19,LOW);
+    }
 
     
 
@@ -177,10 +181,11 @@ void setup()
     Serial.begin(115200);
     Serial.println("Starting micro_ros...");
 
-    pinMode(ledPin, OUTPUT);
+    myservo.attach(15);           
+    pinMode(19,OUTPUT);
     //   set_microros_serial_transports(Serial);
 
-    buttons_msg.data.capacity = 13;
+    buttons_msg.data.capacity = 17;
     buttons_msg.data.size = 0;
     buttons_msg.data.data = (int32_t *)malloc(buttons_msg.data.capacity * sizeof(int32_t));
 
@@ -204,10 +209,10 @@ void setup()
     axes_msg.layout.dim.data[0].label.size = 0;
     axes_msg.layout.dim.data[0].label.data = (char *)malloc(buttons_msg.layout.dim.data[0].label.capacity * sizeof(char));
 
-    IPAddress agent_ip(192, 168, 39, 58);
+    IPAddress agent_ip(192, 168, 12, 1);
     size_t agent_port = 8888;
 
-    char ssid[] = "Pixel_5317";
+    char ssid[] = "RobotWifi";
     char psk[] = "ce53432524";
 
     set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
