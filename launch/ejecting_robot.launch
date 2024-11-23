@@ -2,20 +2,21 @@
     <arg name="run_cameras" default="true"/>
     <!-- Set to wifi or serial -->
     <arg name="run_MPU" default='wifi'/>
+    <arg name="run_teleop" default='true'/>
    
 
     <group if="$(var run_cameras)">
         <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_0" namespace="camera_publisher_0">
             <param name="camera_index" value="0"/>
         <!-- <param name="rstp_url" value="http://192.168.29.201:81/stream"/> -->
-        <param name="rstp_url" value="http://192.168.212.62:81/stream"/>
+        <param name="rstp_url" value="http://192.168.156.95:81/stream"/>
 
         </node>
         
         <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_1" namespace="camera_publisher_1">
             <param name="camera_index" value="1"/>
         <!-- <param name="rstp_url" value="http://192.168.29.102:81/stream"/> -->
-        <param name="rstp_url" value="http://192.168.212.6:81/stream"/>
+        <param name="rstp_url" value="http://192.168.156.62:81/stream"/>
 
         </node>
     </group>
@@ -34,6 +35,18 @@
         <node pkg="micro_ros_agent" exec="micro_ros_agent" name="microros_serial" namespace="microros_serial" args="udp4 --port 8888" output="screen">
 
         </node>
+    </group>
+
+    <group if="$(var run_teleop)">
+        <!-- <include file="$(find-pkg-share p9n_bringup)/launch/teleop.launch.py"/> -->
+        <node pkg="ejecting_robot" exec="teleop" name="teleop_republisher"/>
+        <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
+            <param name="deadzone" value="0.1"/>
+        </node>
+
+
+        
+        
     </group>
 
     
