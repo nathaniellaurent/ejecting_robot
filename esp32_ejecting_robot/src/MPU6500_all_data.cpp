@@ -209,10 +209,10 @@ void setup()
     axes_msg.layout.dim.data[0].label.size = 0;
     axes_msg.layout.dim.data[0].label.data = (char *)malloc(buttons_msg.layout.dim.data[0].label.capacity * sizeof(char));
 
-    IPAddress agent_ip(192, 168, 12, 1);
+    IPAddress agent_ip(192, 168, 156, 58);
     size_t agent_port = 8888;
 
-    char ssid[] = "RobotWifi";
+    char ssid[] = "Pixel_5317";
     char psk[] = "ce53432524";
 
     set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
