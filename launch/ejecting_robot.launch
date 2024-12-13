@@ -1,7 +1,7 @@
 <launch>
     <arg name="run_cameras" default="true"/>
     <!-- Set to wifi or serial -->
-    <arg name="run_MPU" default='wifi'/>
+    <arg name="run_MPU" default='false'/>
     <arg name="run_teleop" default='true'/>
    
 

@@ -23,6 +23,8 @@
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
+#include <opencv2/aruco/dictionary.hpp>
+#include <opencv2/aruco.hpp>>
 
 using namespace std::chrono_literals;
 
@@ -69,7 +71,7 @@ private:
             try
             {
                 std::cout << "Connecting to camera " << camera_index << std::endl;
-                cap.get()->open(rtsp_url,0, params);
+                cap.get()->open(rtsp_url, 0, params);
 
                 std::cout << "Connected successfully to camera " << camera_index << std::endl;
                 success = true;
@@ -90,12 +92,28 @@ private:
             cap.get()->read(frame);
             cv::flip(frame, before_frame, 0);
             cv::flip(before_frame, frame, 1);
+
+            // Detect ArUco markers
+            cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_1000);
+            std::vector<int> markerIds;
+            std::vector<std::vector<cv::Point2f>> markerCorners;
+            cv::aruco::detectMarkers(frame, dictionary, markerCorners, markerIds);
+
+            // Draw detected markers
+            if (!markerIds.empty())
+            {
+                cv::aruco::drawDetectedMarkers(frame, markerCorners, markerIds);
+            }
+            else{
+                RCLCPP_INFO_STREAM(this->get_logger(), "No Tags Detected");
+            }
+            cv::resize(frame, frame, cv::Size(), 2.0, 2.0);
+
             cv::imshow("ID: " + std::to_string(camera_index), frame);
             cv::waitKey(1);
 
             if (count_ % 100 == 0)
             {
-
                 auto message = std_msgs::msg::String();
                 message.data = "ID: " + std::to_string(camera_index) + " Count: " + std::to_string(count_);
                 RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
