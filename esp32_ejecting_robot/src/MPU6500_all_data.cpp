@@ -19,6 +19,7 @@
 
 #include <Arduino.h>
 #include <micro_ros_platformio.h>
+#include "Error.h"
 
 #include <rcl/rcl.h>
 #include <rclc/rclc.h>
@@ -34,6 +35,8 @@
 // #error This example is only avaliable for Arduino framework with serial transport.
 // #endif
 
+int ledPin = 27;
+
 Servo myservo;
 
 rcl_publisher_t resultG_publisher;
@@ -41,7 +44,6 @@ rcl_publisher_t accel_publisher;
 rcl_publisher_t gyro_publisher;
 rcl_publisher_t out_publisher;
 
-int32_t ledPin = 15;
 
 rcl_subscription_t buttons_subscription;
 rcl_subscription_t axes_subscription;
@@ -106,6 +108,13 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
         float temp = myMPU6500.getTemperature();
         float resultantG = myMPU6500.getResultantG(gValue);
 
+        // if(resultantG > 1.1){
+        //     digitalWrite(ledPin,HIGH);
+        // }
+        // else{
+        //     digitalWrite(ledPin,LOW);
+        // }
+
         resultG_msg_float.data = int(resultantG * 100);
 
         // imu_msg.linear_acceleration.x = gValue.x;
@@ -138,7 +147,7 @@ void axes_callback(const void *msgin)
     axes = axes_msg->data.data;
 
     
-    myservo.write(90*axes[0]/0.75+ 90);            
+    // myservo.write(90*axes[0]/0.75+ 90);            
     
     
 
@@ -152,10 +161,10 @@ void buttons_callback(const void *msgin)
     Serial.println("Publishing: " + buttons[0]);
 
     if(buttons[0] == 1){
-        digitalWrite(19,HIGH);
+        digitalWrite(ledPin,HIGH);
     }
     else{
-        digitalWrite(19,LOW);
+        digitalWrite(ledPin,LOW);
     }
 
     
@@ -176,13 +185,19 @@ void buttons_callback(const void *msgin)
 void setup()
 {
     //   Serial.begin(115200);
-    Wire.begin();
+    Wire.begin(23,22);
     // Configure serial transport
     Serial.begin(115200);
     Serial.println("Starting micro_ros...");
 
-    myservo.attach(15);           
-    pinMode(19,OUTPUT);
+    pinMode(ledPin, OUTPUT);
+
+    Error::setup();
+    Error::display_error(1);
+    
+
+    // myservo.attach(15);           
+    // pinMode(19,OUTPUT);
     //   set_microros_serial_transports(Serial);
 
     buttons_msg.data.capacity = 17;
@@ -209,7 +224,7 @@ void setup()
     axes_msg.layout.dim.data[0].label.size = 0;
     axes_msg.layout.dim.data[0].label.data = (char *)malloc(buttons_msg.layout.dim.data[0].label.capacity * sizeof(char));
 
-    IPAddress agent_ip(192, 168, 156, 58);
+    IPAddress agent_ip(192, 168, 156, 195);
     size_t agent_port = 8888;
 
     char ssid[] = "Pixel_5317";
@@ -222,10 +237,16 @@ void setup()
     allocator = rcl_get_default_allocator();
 
     // create init_options
-    RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
+    while(rclc_support_init(&support, 0, NULL, &allocator) != RCL_RET_OK){
+        delay(1000);
+    }
+    Error::display_error(2);
+
 
     // create node
     RCCHECK(rclc_node_init_default(&node, "micro_ros_platformio_node", "", &support));
+    Error::display_error(3);
+
 
     // create publisher
     RCCHECK(rclc_publisher_init_best_effort(
@@ -274,15 +295,20 @@ void setup()
         RCL_MS_TO_NS(timer_timeout),
         timer_callback));
 
+    Error::display_error(4);
     // create executor
     RCCHECK(rclc_executor_init(&timer_executor, &support.context, 1, &allocator));
     RCCHECK(rclc_executor_init(&buttons_executor, &support.context, 1, &allocator));
     RCCHECK(rclc_executor_init(&axes_executor, &support.context, 1, &allocator));
+    Error::display_error(5);
+
 
     rcl_ret_t buttons_rc = rclc_executor_add_subscription(&buttons_executor, &buttons_subscription, &buttons_msg, &buttons_callback, ALWAYS);
     rcl_ret_t axes_rc = rclc_executor_add_subscription(&axes_executor, &axes_subscription, &buttons_msg, &axes_callback, ALWAYS);
 
     rcl_ret_t rc2 = rclc_executor_add_timer(&timer_executor, &timer);
+    Error::display_error(6);
+
 
     if (RCL_RET_OK != buttons_rc)
     {
@@ -310,6 +336,9 @@ void setup()
     if (!myMPU6500.init())
     {
         Serial.println("MPU6500 does not respond");
+        Error::display_error(16);
+
+
     }
     else
     {
@@ -423,7 +452,10 @@ void setup()
      */
     // myMPU6500.enableAccAxes(MPU6500_ENABLE_XYZ);
     // myMPU6500.enableGyrAxes(MPU6500_ENABLE_XYZ);
+    Error::display_error(0);
+
     delay(200);
+    
 }
 
 void loop()

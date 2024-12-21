@@ -1,24 +1,23 @@
 <launch>
-    <arg name="run_cameras" default="true"/>
+    <arg name="run_cameras" default="false"/>
     <!-- Set to wifi or serial -->
-    <arg name="run_MPU" default='false'/>
+    <arg name="run_MPU" default='wifi'/>
     <arg name="run_teleop" default='true'/>
    
 
     <group if="$(var run_cameras)">
-        <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_0" namespace="camera_publisher_0">
+        <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_0" namespace="camera_publisher_0" output = "screen">
             <param name="camera_index" value="0"/>
         <!-- <param name="rstp_url" value="http://192.168.29.201:81/stream"/> -->
         <param name="rstp_url" value="http://192.168.156.95:81/stream"/>
 
         </node>
         
-        <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_1" namespace="camera_publisher_1">
+        <!-- <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_1" namespace="camera_publisher_1">
             <param name="camera_index" value="1"/>
-        <!-- <param name="rstp_url" value="http://192.168.29.102:81/stream"/> -->
         <param name="rstp_url" value="http://192.168.156.62:81/stream"/>
 
-        </node>
+        </node> -->
     </group>
   
 
