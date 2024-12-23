@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include "Error.h"
 
 
@@ -8,6 +7,7 @@
     pinMode(errorPin2, OUTPUT);
     pinMode(errorPin3, OUTPUT);
     pinMode(errorPin4, OUTPUT);
+    pinMode(ledPin, OUTPUT);
 }
 
  void Error::display_error(uint16_t error_code)
@@ -46,4 +46,14 @@
     {
         digitalWrite(errorPin4, LOW);
     }
+}
+
+void Error::ledOn()
+{
+    digitalWrite(ledPin, HIGH);
+}
+
+void Error::ledOff()
+{
+    digitalWrite(ledPin, LOW);
 }

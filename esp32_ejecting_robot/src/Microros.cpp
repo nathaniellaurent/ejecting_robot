@@ -1,204 +1,37 @@
-/***************************************************************************
- * Example sketch for the MPU6500_WE library
- *
- * This sketch shows how to get acceleration, gyroscocope and temperature
- * data from the MPU6500. In essence, the difference to the MPU9250 is the
- * missing magnetometer. The shall only show how to "translate" all other
- * MPU9250 example sketches for use of the MPU6500
- *
- * For further information visit my blog:
- *
- * https://wolles-elektronikkiste.de/mpu9250-9-achsen-sensormodul-teil-1  (German)
- * https://wolles-elektronikkiste.de/en/mpu9250-9-axis-sensor-module-part-1  (English)
- *
- ***************************************************************************/
+#include "Microros.h"
 
-#include <MPU6500_WE.h>
-#include <Wire.h>
-#include <Deneyap_Servo.h>
+rcl_publisher_t Microros::resultG_publisher;
+rcl_publisher_t Microros::accel_publisher;
+rcl_publisher_t Microros::gyro_publisher;
+rcl_publisher_t Microros::out_publisher;
+rcl_subscription_t Microros::buttons_subscription;
+rcl_subscription_t Microros::axes_subscription;
 
-#include <Arduino.h>
-#include <micro_ros_platformio.h>
-#include "Error.h"
+std_msgs__msg__Float32 Microros::resultG_msg_float;
+geometry_msgs__msg__Vector3 Microros::accel_msg;
+geometry_msgs__msg__Vector3 Microros::gyro_msg;
+std_msgs__msg__Int32 Microros::out_msg;
 
-#include <rcl/rcl.h>
-#include <rclc/rclc.h>
-#include <rclc/executor.h>
+std_msgs__msg__Int32MultiArray Microros::buttons_msg;
+std_msgs__msg__Float32MultiArray Microros::axes_msg;
+rclc_executor_t Microros::timer_executor;
 
-#include <std_msgs/msg/float32.h>
-#include <std_msgs/msg/int32.h>
-#include <std_msgs/msg/int32_multi_array.h>
-#include <std_msgs/msg/float32_multi_array.h>
-#include <geometry_msgs/msg/vector3.h>
+rclc_executor_t Microros::buttons_executor;
+rclc_executor_t Microros::axes_executor;
+rclc_support_t Microros::support;
+rcl_allocator_t Microros::allocator;
+rcl_node_t Microros::node;
+rcl_timer_t Microros::timer;
 
-// #if !defined(MICRO_ROS_TRANSPORT_ARDUINO_SERIAL)
-// #error This example is only avaliable for Arduino framework with serial transport.
-// #endif
+std::shared_ptr<MPU6500_WE> Microros::myMPU6500;
 
-int ledPin = 27;
+Motor Microros::motor1 = Motor(AIN1, AIN2);
+Motor Microros::motor2 = Motor(BIN1, BIN2);
 
-Servo myservo;
-
-rcl_publisher_t resultG_publisher;
-rcl_publisher_t accel_publisher;
-rcl_publisher_t gyro_publisher;
-rcl_publisher_t out_publisher;
-
-
-rcl_subscription_t buttons_subscription;
-rcl_subscription_t axes_subscription;
-
-std_msgs__msg__Float32 resultG_msg_float;
-geometry_msgs__msg__Vector3 accel_msg;
-geometry_msgs__msg__Vector3 gryo_msg;
-std_msgs__msg__Int32 out_msg;
-
-int32_t *buttons;
-float axes_list[3];
-float *axes = axes_list;
-
-std_msgs__msg__Int32MultiArray buttons_msg;
-std_msgs__msg__Float32MultiArray axes_msg;
-rclc_executor_t timer_executor;
-
-rclc_executor_t buttons_executor;
-rclc_executor_t axes_executor;
-rclc_support_t support;
-rcl_allocator_t allocator;
-rcl_node_t node;
-rcl_timer_t timer;
-
-#define MPU6500_ADDR 0x68
-
-MPU6500_WE myMPU6500 = MPU6500_WE(MPU6500_ADDR);
-
-#define RCCHECK(fn)                  \
-    {                                \
-        rcl_ret_t temp_rc = fn;      \
-        if ((temp_rc != RCL_RET_OK)) \
-        {                            \
-            error_loop();            \
-        }                            \
-    }
-#define RCSOFTCHECK(fn)              \
-    {                                \
-        rcl_ret_t temp_rc = fn;      \
-        if ((temp_rc != RCL_RET_OK)) \
-        {                            \
-        }                            \
-    }
-
-// Error handle loop
-void error_loop()
+void Microros::setup()
 {
-    while (1)
-    {
-        delay(100);
-    }
-}
 
-void timer_callback(rcl_timer_t *timer, int64_t last_call_time)
-{
-    RCLC_UNUSED(last_call_time);
-    Serial.println("Timer callback called");
-    if (timer != NULL)
-    {
-        xyzFloat gValue = myMPU6500.getGValues();
-        xyzFloat gyr = myMPU6500.getGyrValues();
-        float temp = myMPU6500.getTemperature();
-        float resultantG = myMPU6500.getResultantG(gValue);
-
-        // if(resultantG > 1.1){
-        //     digitalWrite(ledPin,HIGH);
-        // }
-        // else{
-        //     digitalWrite(ledPin,LOW);
-        // }
-
-        resultG_msg_float.data = int(resultantG * 100);
-
-        // imu_msg.linear_acceleration.x = gValue.x;
-        // imu_msg.linear_acceleration.y = gValue.y;
-        // imu_msg.linear_acceleration.z = gValue.z;
-
-        // imu_msg.angular_velocity.x = gyr.x;
-        // imu_msg.angular_velocity.y = gyr.y;
-        // imu_msg.angular_velocity.z = gyr.z;
-
-        accel_msg.x = 9.81 * gValue.x;
-        accel_msg.y = 9.81 * gValue.y;
-        accel_msg.z = 9.81 * gValue.z;
-
-        gryo_msg.x = gyr.x;
-        gryo_msg.y = gyr.y;
-        gryo_msg.z = gyr.z;
-
-        RCSOFTCHECK(rcl_publish(&resultG_publisher, &resultG_msg_float, NULL));
-        RCSOFTCHECK(rcl_publish(&accel_publisher, &accel_msg, NULL));
-        RCSOFTCHECK(rcl_publish(&gyro_publisher, &gryo_msg, NULL));
-        RCSOFTCHECK(rcl_publish(&out_publisher, &out_msg, NULL));
-    }
-}
-
-void axes_callback(const void *msgin)
-{
-    Serial.println("Callback axes called");
-    const std_msgs__msg__Float32MultiArray *axes_msg = (const std_msgs__msg__Float32MultiArray *)msgin;
-    axes = axes_msg->data.data;
-
-    
-    // myservo.write(90*axes[0]/0.75+ 90);            
-    
-    
-
-}
-
-void buttons_callback(const void *msgin)
-{
-    Serial.println("Callback buttons called");
-    const std_msgs__msg__Int32MultiArray *buttons_msg = (const std_msgs__msg__Int32MultiArray *)msgin;
-    buttons = buttons_msg->data.data;
-    Serial.println("Publishing: " + buttons[0]);
-
-    if(buttons[0] == 1){
-        digitalWrite(ledPin,HIGH);
-    }
-    else{
-        digitalWrite(ledPin,LOW);
-    }
-
-    
-
-    out_msg.data = int(buttons[0]);
-
-    RCSOFTCHECK(rcl_publish(&out_publisher, &out_msg, NULL));
-}
-
-/* There are several ways to create your MPU6500 object:
- * MPU6500_WE myMPU6500 = MPU6500_WE()              -> uses Wire / I2C Address = 0x68
- * MPU6500_WE myMPU6500 = MPU6500_WE(MPU6500_ADDR)  -> uses Wire / MPU6500_ADDR
- * MPU6500_WE myMPU6500 = MPU6500_WE(&wire2)        -> uses the TwoWire object wire2 / MPU6500_ADDR
- * MPU6500_WE myMPU6500 = MPU6500_WE(&wire2, MPU6500_ADDR) -> all together
- * Successfully tested with two I2C busses on an ESP32
- */
-
-void setup()
-{
-    //   Serial.begin(115200);
-    Wire.begin(23,22);
-    // Configure serial transport
-    Serial.begin(115200);
-    Serial.println("Starting micro_ros...");
-
-    pinMode(ledPin, OUTPUT);
-
-    Error::setup();
-    Error::display_error(1);
-    
-
-    // myservo.attach(15);           
-    // pinMode(19,OUTPUT);
-    //   set_microros_serial_transports(Serial);
+    myMPU6500 = std::make_shared<MPU6500_WE>(MPU6500_WE(MPU6500_ADDR));
 
     buttons_msg.data.capacity = 17;
     buttons_msg.data.size = 0;
@@ -222,31 +55,23 @@ void setup()
 
     axes_msg.layout.dim.data[0].label.capacity = 10;
     axes_msg.layout.dim.data[0].label.size = 0;
-    axes_msg.layout.dim.data[0].label.data = (char *)malloc(buttons_msg.layout.dim.data[0].label.capacity * sizeof(char));
+    axes_msg.layout.dim.data[0].label.data = (char *)malloc(axes_msg.layout.dim.data[0].label.capacity * sizeof(char));
 
-    IPAddress agent_ip(192, 168, 156, 195);
-    size_t agent_port = 8888;
+    set_microros_wifi_transports((char *)ssid, (char *)psk, agent_ip, agent_port);
 
-    char ssid[] = "Pixel_5317";
-    char psk[] = "ce53432524";
-
-    set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
-
-    delay(2000);
-
+    delay(250);
     allocator = rcl_get_default_allocator();
 
     // create init_options
-    while(rclc_support_init(&support, 0, NULL, &allocator) != RCL_RET_OK){
+    while (rclc_support_init(&support, 0, NULL, &allocator) != RCL_RET_OK)
+    {
         delay(1000);
     }
     Error::display_error(2);
 
-
     // create node
     RCCHECK(rclc_node_init_default(&node, "micro_ros_platformio_node", "", &support));
     Error::display_error(3);
-
 
     // create publisher
     RCCHECK(rclc_publisher_init_best_effort(
@@ -302,13 +127,11 @@ void setup()
     RCCHECK(rclc_executor_init(&axes_executor, &support.context, 1, &allocator));
     Error::display_error(5);
 
-
     rcl_ret_t buttons_rc = rclc_executor_add_subscription(&buttons_executor, &buttons_subscription, &buttons_msg, &buttons_callback, ALWAYS);
     rcl_ret_t axes_rc = rclc_executor_add_subscription(&axes_executor, &axes_subscription, &buttons_msg, &axes_callback, ALWAYS);
 
     rcl_ret_t rc2 = rclc_executor_add_timer(&timer_executor, &timer);
     Error::display_error(6);
-
 
     if (RCL_RET_OK != buttons_rc)
     {
@@ -324,8 +147,6 @@ void setup()
     else
         Serial.println("Successfully added axes subscriber to executor.");
 
-        
-
     if (RCL_RET_OK != rc2)
     {
         Serial.println("Error adding timer to executor.");
@@ -333,12 +154,10 @@ void setup()
     else
         Serial.println("Successfully added timer to executor.");
 
-    if (!myMPU6500.init())
+    if (!myMPU6500->init())
     {
         Serial.println("MPU6500 does not respond");
-        Error::display_error(16);
-
-
+        Error::display_error(10);
     }
     else
     {
@@ -355,8 +174,8 @@ void setup()
      * This function needs to be called at the beginning since it can overwrite your settings!
      */
     //   Serial.println("Position you MPU6500 flat and don't move it - calibrating...");
-    delay(1000);
-    myMPU6500.autoOffsets();
+    delay(100);
+    myMPU6500->autoOffsets();
     //   Serial.println("Done!");
 
     /*  This is a more accurate method for calibration. You have to determine the minimum and maximum
@@ -379,7 +198,7 @@ void setup()
      *  MPU6500_BW_WO_DLPF_3600
      *  MPU6500_BW_WO_DLPF_8800
      */
-    myMPU6500.enableGyrDLPF();
+    myMPU6500->enableGyrDLPF();
     // myMPU6500.disableGyrDLPF(MPU6500_BW_WO_DLPF_8800); // bandwdith without DLPF
 
     /*  Digital Low Pass Filter for the gyroscope must be enabled to choose the level.
@@ -397,33 +216,33 @@ void setup()
      *
      *    You achieve lowest noise using level 6
      */
-    myMPU6500.setGyrDLPF(MPU6500_DLPF_6);
+    myMPU6500->setGyrDLPF(MPU6500_DLPF_6);
 
     /*  Sample rate divider divides the output rate of the gyroscope and accelerometer.
      *  Sample rate = Internal sample rate / (1 + divider)
      *  It can only be applied if the corresponding DLPF is enabled and 0<DLPF<7!
      *  Divider is a number 0...255
      */
-    myMPU6500.setSampleRateDivider(5);
+    myMPU6500->setSampleRateDivider(5);
 
     /*  MPU6500_GYRO_RANGE_250       250 degrees per second (default)
      *  MPU6500_GYRO_RANGE_500       500 degrees per second
      *  MPU6500_GYRO_RANGE_1000     1000 degrees per second
      *  MPU6500_GYRO_RANGE_2000     2000 degrees per second
      */
-    myMPU6500.setGyrRange(MPU6500_GYRO_RANGE_250);
+    myMPU6500->setGyrRange(MPU6500_GYRO_RANGE_250);
 
     /*  MPU6500_ACC_RANGE_2G      2 g   (default)
      *  MPU6500_ACC_RANGE_4G      4 g
      *  MPU6500_ACC_RANGE_8G      8 g
      *  MPU6500_ACC_RANGE_16G    16 g
      */
-    myMPU6500.setAccRange(MPU6500_ACC_RANGE_2G);
+    myMPU6500->setAccRange(MPU6500_ACC_RANGE_2G);
 
     /*  Enable/disable the digital low pass filter for the accelerometer
      *  If disabled the bandwidth is 1.13 kHz, delay is 0.75 ms, output rate is 4 kHz
      */
-    myMPU6500.enableAccDLPF(true);
+    myMPU6500->enableAccDLPF(true);
 
     /*  Digital low pass filter (DLPF) for the accelerometer, if enabled
      *  MPU6500_DPLF_0, MPU6500_DPLF_2, ...... MPU6500_DPLF_7
@@ -437,7 +256,7 @@ void setup()
      *     6             5              66.96           1
      *     7           460               1.94           1
      */
-    myMPU6500.setAccDLPF(MPU6500_DLPF_6);
+    myMPU6500->setAccDLPF(MPU6500_DLPF_6);
 
     /* You can enable or disable the axes for gyroscope and/or accelerometer measurements.
      * By default all axes are enabled. Parameters are:
@@ -455,34 +274,145 @@ void setup()
     Error::display_error(0);
 
     delay(200);
-    
 }
 
-void loop()
+void Microros::timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 {
-    delay(1);
+    RCLC_UNUSED(last_call_time);
+    Serial.println("Timer callback called");
+    if (timer != NULL)
+    {
+        xyzFloat gValue = myMPU6500->getGValues();
+        xyzFloat gyr = myMPU6500->getGyrValues();
+        float temp = myMPU6500->getTemperature();
+        float resultantG = myMPU6500->getResultantG(gValue);
+
+        // if(resultantG > 1.1){
+        //     digitalWrite(ledPin,HIGH);
+        // }
+        // else{
+        //     digitalWrite(ledPin,LOW);
+        // }
+
+        resultG_msg_float.data = int(resultantG * 100);
+
+        // imu_msg.linear_acceleration.x = gValue.x;
+        // imu_msg.linear_acceleration.y = gValue.y;
+        // imu_msg.linear_acceleration.z = gValue.z;
+
+        // imu_msg.angular_velocity.x = gyr.x;
+        // imu_msg.angular_velocity.y = gyr.y;
+        // imu_msg.angular_velocity.z = gyr.z;
+
+        accel_msg.x = 9.81 * gValue.x;
+        accel_msg.y = 9.81 * gValue.y;
+        accel_msg.z = 9.81 * gValue.z;
+
+        // if (accel_msg.z < 5)
+        // {
+        //     motor1.setSpeed(1);
+        //     motor2.setSpeed(1);
+        // }
+
+        gyro_msg.x = gyr.x;
+        gyro_msg.y = gyr.y;
+        gyro_msg.z = gyr.z;
+
+        RCSOFTCHECK(rcl_publish(&resultG_publisher, &resultG_msg_float, NULL));
+        RCSOFTCHECK(rcl_publish(&accel_publisher, &accel_msg, NULL));
+        RCSOFTCHECK(rcl_publish(&gyro_publisher, &gyro_msg, NULL));
+        RCSOFTCHECK(rcl_publish(&out_publisher, &Microros::out_msg, NULL));
+    }
+}
+
+void Microros::axes_callback(const void *msgin)
+{
+    Serial.println("Callback axes called");
+    const std_msgs__msg__Float32MultiArray *axes_msg = (const std_msgs__msg__Float32MultiArray *)msgin;
+    float *axes = axes_msg->data.data;
+
+    float leftStick = axes[1] / 0.7;
+    float rightStick = axes[3] / 0.72;
+
+    std::string printString1 = "leftStick: " + std::to_string(leftStick);
+    Serial.println(leftStick);
+    Serial.println(rightStick);
+
+    if (leftStick > 1)
+    {
+        leftStick = 1;
+    }
+    else if (axes[1] < -1)
+    {
+        leftStick = -1;
+    }
+
+    if (rightStick > 1)
+    {
+        rightStick = 1;
+    }
+    else if (rightStick < -1)
+    {
+        rightStick = -1;
+    }
+
+    motor1.setSpeed(leftStick);
+    motor2.setSpeed(rightStick);
+
+    // myservo.write(90*axes[0]/0.75+ 90);
+}
+
+void Microros::buttons_callback(const void *msgin)
+{
+    Serial.println("Callback buttons called");
+    const std_msgs__msg__Int32MultiArray *buttons_msg = (const std_msgs__msg__Int32MultiArray *)msgin;
+    int32_t *buttons = buttons_msg->data.data;
+    Serial.println("Publishing: " + buttons[0]);
+
+    if (buttons[0] == 1)
+    {
+        Error::ledOn();
+    }
+    else
+    {
+        Error::ledOff();
+    }
+
+    out_msg.data = int(buttons[0]);
+
+    RCSOFTCHECK(rcl_publish(&out_publisher, &out_msg, NULL));
+}
+
+void Microros::spin_nodes()
+{
     RCSOFTCHECK(rclc_executor_spin_some(&timer_executor, RCL_MS_TO_NS(1)));
     RCSOFTCHECK(rclc_executor_spin_some(&buttons_executor, RCL_MS_TO_NS(1)));
     RCSOFTCHECK(rclc_executor_spin_some(&axes_executor, RCL_MS_TO_NS(1)));
+}
 
-    //   Serial.println("Acceleration in g (x,y,z):");
-    //   Serial.print(gValue.x);
-    //   Serial.print("   ");
-    //   Serial.print(gValue.y);
-    //   Serial.print("   ");
-    //   Serial.println(gValue.z);
-    //   Serial.print("Resultant g: ");
-    //   Serial.println(resultantG);
+void Microros::error_loop()
+{
 
-    //   Serial.println("Gyroscope data in degrees/s: ");
-    //   Serial.print(gyr.x);
-    //   Serial.print("   ");
-    //   Serial.print(gyr.y);
-    //   Serial.print("   ");
-    //   Serial.println(gyr.z);
+    while (1)
+    {
+        delay(100);
+    }
+}
 
-    //   Serial.print("Temperature in °C: ");
-    //   Serial.println(temp);
+bool Microros::ping()
+{
+    rmw_ret_t pingResult = rmw_uros_ping_agent(50, 10);
+    if (pingResult != RMW_RET_OK)
+    {
+        Serial.println("Ping failed");
+        Error::display_error(15);
+        return false;
+    }
+    else
+    {
+        Serial.println("Ping successful");
+        Error::display_error(0);
 
-    //   Serial.println("********************************************");
+        return true;
+    }
 }
