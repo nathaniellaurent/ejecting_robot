@@ -19,8 +19,13 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <sensor_msgs/msg/image.hpp>
+
+#include <Eigen/Dense>
+
 #include <cv_bridge/cv_bridge.h>
+#include <opencv2/core/eigen.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/aruco/dictionary.hpp>
@@ -57,7 +62,9 @@ public:
 
         cap.get()->setExceptionMode(true);
 
-        publisher_ = this->create_publisher<sensor_msgs::msg::Image>("image" + std::to_string(camera_index), 0);
+        image_publisher_ = this->create_publisher<sensor_msgs::msg::Image>("image" + std::to_string(camera_index), 0);
+        pose_publisher_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("pose", 0);
+
         timer_ = this->create_wall_timer(
             1ms, std::bind(&CameraPublisher::timer_callback, this));
     }
@@ -107,7 +114,9 @@ private:
         cv::imshow("Image", resized_frame);
         cv::waitKey(1);
 
-        if (objpoints.size() < 30)
+        std::cout << "objpoints size: " << objpoints.size() << std::endl;
+
+        if (objpoints.size() < 40)
         {
             RCLCPP_INFO(this->get_logger(), "Not enough points for calibration");
             return;
@@ -142,7 +151,137 @@ private:
             std::cout << "Rotation vector : " << R << std::endl;
             std::cout << "Translation vector : " << T << std::endl;
         }
-            
+    }
+    void detect_pose(cv::Mat frame)
+    {
+        cv::Mat undistorted_frame;
+        cv::undistort(frame, undistorted_frame, cameraMatrix, distCoeffs);
+
+        if (undistorted_frame.cols < 640 || undistorted_frame.rows < 480)
+        {
+            cv::resize(undistorted_frame, undistorted_frame, cv::Size(), 2.0, 2.0);
+        }
+
+        // vector to store the pixel coordinates of detected checker board corners
+
+        // Looping over all the images in the directory
+
+        // Detect ArUco markers
+        cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_1000);
+        std::vector<int> markerIds;
+        std::vector<std::vector<cv::Point2f>> markerCorners;
+        cv::aruco::detectMarkers(frame, dictionary, markerCorners, markerIds);
+
+        cv::Mat objPoints(4, 1, CV_32FC3);
+        objPoints.ptr<cv::Vec3f>(0)[0] = cv::Vec3f(-marker_length / 2.f, marker_length / 2.f, 0);
+        objPoints.ptr<cv::Vec3f>(0)[1] = cv::Vec3f(marker_length / 2.f, marker_length / 2.f, 0);
+        objPoints.ptr<cv::Vec3f>(0)[2] = cv::Vec3f(marker_length / 2.f, -marker_length / 2.f, 0);
+        objPoints.ptr<cv::Vec3f>(0)[3] = cv::Vec3f(-marker_length / 2.f, -marker_length / 2.f, 0);
+        // Draw detected markers
+
+        size_t nMarkers = markerCorners.size();
+        std::vector<cv::Vec3d> rvecs(nMarkers), tvecs(nMarkers);
+
+        if (!markerIds.empty())
+        {
+            // Calculate pose for each marker
+            for (size_t i = 0; i < nMarkers; i++)
+            {
+                solvePnP(objPoints, markerCorners.at(i), cameraMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
+            }
+
+            cv::Mat rotation_matrix;
+            cv::Vec3d new_rvec;
+            new_rvec[0] = rvecs.at(0)[2];  
+            new_rvec[1] = rvecs.at(0)[0];  
+            new_rvec[2] = rvecs.at(0)[1];  
+
+            cv::Vec3d new_tvec;
+            new_tvec[0] = tvecs.at(0)[2];  
+            new_tvec[1] = tvecs.at(0)[0];  
+            new_tvec[2] = tvecs.at(0)[1];  
+
+            cv::Rodrigues(new_rvec, rotation_matrix);
+            cv::Mat inverted_rotation_matrix = rotation_matrix.t();
+
+            cv::Mat inverted_translation_mat = -inverted_rotation_matrix * cv::Mat(new_tvec);
+            cv::Vec3d inverted_translation_vector;
+            inverted_translation_vector[0] = inverted_translation_mat.at<double>(0);
+            inverted_translation_vector[1] = inverted_translation_mat.at<double>(1);
+            inverted_translation_vector[2] = inverted_translation_mat.at<double>(2);
+
+            Eigen::Matrix3f eigen_inverted_rotation;
+            eigen_inverted_rotation(0, 0) = inverted_rotation_matrix.at<double>(0, 0);
+            eigen_inverted_rotation(0, 1) = inverted_rotation_matrix.at<double>(0, 1);
+            eigen_inverted_rotation(0, 2) = inverted_rotation_matrix.at<double>(0, 2);
+            eigen_inverted_rotation(1, 0) = inverted_rotation_matrix.at<double>(1, 0);
+            eigen_inverted_rotation(1, 1) = inverted_rotation_matrix.at<double>(1, 1);
+            eigen_inverted_rotation(1, 2) = inverted_rotation_matrix.at<double>(1, 2);
+            eigen_inverted_rotation(2, 0) = inverted_rotation_matrix.at<double>(2, 0);
+            eigen_inverted_rotation(2, 1) = inverted_rotation_matrix.at<double>(2, 1);
+            eigen_inverted_rotation(2, 2) = inverted_rotation_matrix.at<double>(2, 2);
+
+            Eigen::Quaternionf inverted_quaternion(eigen_inverted_rotation);
+
+            inverted_quaternion.normalize();
+
+            geometry_msgs::msg::PoseStamped pose_message;
+
+            pose_message.header.stamp = this->now();
+            pose_message.header.frame_id = "world";
+
+            pose_message.pose.position.x = inverted_translation_vector[0];
+            pose_message.pose.position.y = inverted_translation_vector[1];
+            pose_message.pose.position.z = inverted_translation_vector[2];
+
+            pose_message.pose.orientation.x = inverted_quaternion.x();
+            pose_message.pose.orientation.y = inverted_quaternion.y();
+            pose_message.pose.orientation.z = inverted_quaternion.z();
+            pose_message.pose.orientation.w = inverted_quaternion.w();
+
+            for (size_t i = 0; i < markerIds.size(); i++)
+            {
+                RCLCPP_INFO(this->get_logger(), "Marker ID: %d", markerIds[i]);
+                RCLCPP_INFO(this->get_logger(), "Translation vector: [%f, %f, %f]", inverted_translation_vector[0], inverted_translation_vector[1], inverted_translation_vector[2]);
+                RCLCPP_INFO(this->get_logger(), "Rotation vector: [%f, %f, %f]", rvecs[i][0], rvecs[i][1], rvecs[i][2]);
+                RCLCPP_INFO(this->get_logger(), "Quaternion: [%f, %f, %f, %f]", inverted_quaternion.x(), inverted_quaternion.y(), inverted_quaternion.z(), inverted_quaternion.w());
+            }
+
+            pose_publisher_->publish(pose_message);
+        }
+
+        if (!markerIds.empty())
+        {
+            cv::aruco::drawDetectedMarkers(frame, markerCorners, markerIds);
+        }
+        else
+        {
+            RCLCPP_INFO_STREAM(this->get_logger(), "No Tags Detected");
+        }
+        // Output the positions of the markers
+
+        // Undistort the image if calibrated
+
+        if (count_ % 100 == 0)
+        {
+            auto message = std_msgs::msg::String();
+            message.data = "ID: " + std::to_string(camera_index) + " Count: " + std::to_string(count_);
+            RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
+        }
+        count_++;
+
+        cv_bridge::CvImage cvImage;
+        cvImage.header.stamp = this->now();
+        cvImage.image = frame;
+        sensor_msgs::msg::Image image_msg = *cvImage.toImageMsg();
+        image_msg.set__encoding("bgr8");
+
+        image_publisher_->publish(image_msg);
+
+        cv::Mat resized_frame;
+        cv::resize(frame, resized_frame, cv::Size(), 0.7, 0.7);
+        cv::imshow("ID: " + std::to_string(camera_index), frame);
+        cv::waitKey(1);
     }
 
     void timer_callback()
@@ -178,76 +317,9 @@ private:
         {
 
             cap.get()->read(frame);
-
-            
-            cv::Mat undistorted_frame;
-            cv::undistort(frame, undistorted_frame, cameraMatrix, distCoeffs);
-
-            if (undistorted_frame.cols < 640 || undistorted_frame.rows < 480)
-            {
-                cv::resize(undistorted_frame, undistorted_frame, cv::Size(), 2.0, 2.0);
-            }
-            cv::Mat resized_frame;
-            cv::resize(undistorted_frame, resized_frame, cv::Size(), 0.7, 0.7);
-            cv::imshow("Undistorted ID: " + std::to_string(camera_index), resized_frame);
-            cv::waitKey(1);
-            
-
-            // vector to store the pixel coordinates of detected checker board corners
-
-            // Looping over all the images in the directory
+            // calibrate_camera(frame);
+            detect_pose(frame);
         }
-
-        // Detect ArUco markers
-        // cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_1000);
-        // std::vector<int> markerIds;
-        // std::vector<std::vector<cv::Point2f>> markerCorners;
-        // cv::aruco::detectMarkers(frame, dictionary, markerCorners, markerIds);
-
-        // cv::Mat objPoints(4, 1, CV_32FC3);
-        // objPoints.ptr<cv::Vec3f>(0)[0] = cv::Vec3f(-marker_length / 2.f, marker_length / 2.f, 0);
-        // objPoints.ptr<cv::Vec3f>(0)[1] = cv::Vec3f(marker_length / 2.f, marker_length / 2.f, 0);
-        // objPoints.ptr<cv::Vec3f>(0)[2] = cv::Vec3f(marker_length / 2.f, -marker_length / 2.f, 0);
-        // objPoints.ptr<cv::Vec3f>(0)[3] = cv::Vec3f(-marker_length / 2.f, -marker_length / 2.f, 0);
-        // // Draw detected markers
-
-        // size_t nMarkers = markerCorners.size();
-        // std::vector<cv::Vec3d> rvecs(nMarkers), tvecs(nMarkers);
-
-        // if (!markerIds.empty())
-        // {
-        //     // Calculate pose for each marker
-        //     for (size_t i = 0; i < nMarkers; i++)
-        //     {
-        //         solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
-        //     }
-        // }
-
-        // if (!markerIds.empty())
-        // {
-        //     cv::aruco::drawDetectedMarkers(frame, markerCorners, markerIds);
-        // }
-        // else
-        // {
-        //     RCLCPP_INFO_STREAM(this->get_logger(), "No Tags Detected");
-
-        // Undistort the image if calibrated
-
-        if (count_ % 100 == 0)
-        {
-            auto message = std_msgs::msg::String();
-            message.data = "ID: " + std::to_string(camera_index) + " Count: " + std::to_string(count_);
-            RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
-        }
-        count_++;
-
-        cv_bridge::CvImage cvImage;
-        cvImage.header.stamp = this->now();
-        cvImage.image = frame;
-        sensor_msgs::msg::Image image_msg = *cvImage.toImageMsg();
-        image_msg.set__encoding("bgr8");
-
-        publisher_->publish(image_msg);
     }
 
     std::vector<cv::Point2f> corner_pts;
@@ -262,19 +334,31 @@ private:
     std::vector<cv::Point3f> objp;
 
     rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr publisher_;
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_publisher_;
     size_t count_;
 
     std::shared_ptr<cv::VideoCapture> cap;
     std::string rtsp_url;
     int camera_index;
-    float marker_length = 5;
+    float marker_length = 0.15875;
     int CHECKERBOARD[2]{6, 9};
-    cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << 434.4572880719159, 0, 618.6044132887367,
-                            0, 435.2917648761863, 361.3815453027511,
+    // cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << 434.4572880719159, 0, 618.6044132887367,
+    //                         0, 435.2917648761863, 361.3815453027511,
+    //                         0, 0, 1);
+
+    // cv::Mat distCoeffs = (cv::Mat_<double>(1, 5) << 0.2116337614583763, -0.2336134487696931, 0.002105638057892645, -0.0008786200891493874, 0.05910128608762473);
+
+    // cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << 110.2894455498797, 0, 164.3783581439072,
+    //                         0, 113.1385298003699, 124.4976515535277,
+    //                         0, 0, 1);
+
+    // cv::Mat distCoeffs = (cv::Mat_<double>(1, 5) << .1668463346620745, -0.1694508476023472, -0.0006804338570774129, 4.956087034116383e-05, 0.03606227345997835);
+    cv::Mat cameraMatrix = (cv::Mat_<double>(3, 3) << 86.5543971578997, 0, 151.4114327956759,
+                            0, 89.22489153429152, 124.9870606734323,
                             0, 0, 1);
 
-    cv::Mat distCoeffs = (cv::Mat_<double>(1, 5) << 0.2116337614583763, -0.2336134487696931, 0.002105638057892645, -0.0008786200891493874, 0.05910128608762473);
+    cv::Mat distCoeffs = (cv::Mat_<double>(1, 5) << 0.01440877775584453, -0.02739560808511739, -0.001982290010110622, 0.002271691744549752, 0.003002276168833601);
 };
 
 int main(int argc, char *argv[])

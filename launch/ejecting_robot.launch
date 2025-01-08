@@ -1,56 +1,80 @@
 <launch>
-    <arg name="run_cameras" default="false"/>
+    <arg name="run_cameras" default="true" />
     <!-- Set to wifi or serial -->
-    <arg name="run_MPU" default='wifi'/>
-    <arg name="run_teleop" default='true'/>
-   
+    <arg name="run_MPU" default='wifi' />
+    <arg name="run_teleop" default='true' />
+
+    <arg name="run_rqt" default='true' />
+    <arg name="run_rviz" default='true' />
+    
+
+
+    
+
+
 
     <group if="$(var run_cameras)">
-        <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_0" namespace="camera_publisher_0" output = "screen">
+        <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_0"
+        namespace="camera_publisher_0" output = "screen">
             <param name="camera_index" value="0"/>
-        <!-- <param name="rstp_url" value="http://192.168.29.201:81/stream"/> -->
-        <param name="rstp_url" value="http://192.168.156.95:81/stream"/>
+       
+        <param name="rstp_url" value="http://192.168.72.95:81/stream"/>
 
-        </node>
-        
-        <!-- <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_1" namespace="camera_publisher_1">
-            <param name="camera_index" value="1"/>
-        <param name="rstp_url" value="http://192.168.156.62:81/stream"/>
+        </node> 
+
+        <!-- <node pkg="ejecting_robot" exec="camera_publisher" name="camera_publisher_1"
+            namespace="camera_publisher_1" output="screen">
+            <param name="camera_index" value="1" />
+            <param name="rstp_url" value="http://192.168.58.62:81/stream" />
 
         </node> -->
     </group>
-  
 
 
     <group if="$(eval '\'$(var run_MPU)\' == \'serial\'')">
 
-        <node pkg="micro_ros_agent" exec="micro_ros_agent" name="microros_serial" namespace="microros_serial" args="serial --dev /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0" output="screen">
+        <node pkg="micro_ros_agent" exec="micro_ros_agent" name="microros_serial"
+            namespace="microros_serial"
+            args="serial --dev /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0"
+            output="screen">
 
         </node>
     </group>
 
     <group if="$(eval '\'$(var run_MPU)\'  ==  \'wifi\'')">
 
-        <node pkg="micro_ros_agent" exec="micro_ros_agent" name="microros_serial" namespace="microros_serial" args="udp4 --port 8888" output="screen">
+        <node pkg="micro_ros_agent" exec="micro_ros_agent" name="microros_serial"
+            namespace="microros_serial" args="udp4 --port 8888" output="screen">
 
         </node>
     </group>
 
     <group if="$(var run_teleop)">
         <!-- <include file="$(find-pkg-share p9n_bringup)/launch/teleop.launch.py"/> -->
-        <node pkg="ejecting_robot" exec="teleop" name="teleop_republisher"/>
+        <node pkg="ejecting_robot" exec="teleop" name="teleop_republisher" />
         <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
-            <param name="deadzone" value="0.1"/>
+            <param name="deadzone" value="0.1" />
         </node>
 
 
+    </group>
+    <group if="$(var run_rqt)">
+        <!-- <include file="$(find-pkg-share p9n_bringup)/launch/teleop.launch.py"/> -->
+        <node pkg="rqt_gui" exec="rqt_gui" name="rqt_gui" />
         
+
+
+    </group>
+
+    <group if="$(var run_rviz)">
+        <!-- <include file="$(find-pkg-share p9n_bringup)/launch/teleop.launch.py"/> -->
+        <node pkg="rviz2" exec="rviz2" name="rviz2" output="screen"/>
         
+
+
     </group>
 
     
-
-  
 
 
 </launch>

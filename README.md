@@ -40,3 +40,22 @@ To run wifi agent:
 ```bash
 ros2 run micro_ros_agent micro_ros_agent udp4 --port 8888
 ```
+To run tf2 world:
+
+```bash
+ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 1 world
+```
+To run rviz world:
+
+```bash
+ros2 run rviz2 rviz2
+```
+
+
+
+Dependencies
+
+```bash
+sudo apt install libeigen3-dev
+sudo apt-get install ros-${ROS_DISTRO}-ros-gz
+```
