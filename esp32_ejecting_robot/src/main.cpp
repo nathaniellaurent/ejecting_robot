@@ -26,6 +26,10 @@ bool currentStatus = true;
 void setup()
 {
     //   Serial.begin(115200);
+
+    pinMode(32, OUTPUT);
+    digitalWrite(32, HIGH);
+    
     Wire.begin(23, 22);
     // Configure serial transport
     Serial.begin(115200);
@@ -36,6 +40,9 @@ void setup()
     Serial.println("Starting micro_ros...");
 
     Microros::setup();
+
+    
+
 }
 
 void loop()
