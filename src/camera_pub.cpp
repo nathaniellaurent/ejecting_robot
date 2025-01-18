@@ -16,6 +16,9 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
@@ -192,14 +195,14 @@ private:
 
             cv::Mat rotation_matrix;
             cv::Vec3d new_rvec;
-            new_rvec[0] = rvecs.at(0)[2];  
-            new_rvec[1] = rvecs.at(0)[0];  
-            new_rvec[2] = rvecs.at(0)[1];  
+            new_rvec[0] = rvecs.at(0)[2];
+            new_rvec[1] = rvecs.at(0)[0];
+            new_rvec[2] = rvecs.at(0)[1];
 
             cv::Vec3d new_tvec;
-            new_tvec[0] = tvecs.at(0)[2];  
-            new_tvec[1] = tvecs.at(0)[0];  
-            new_tvec[2] = tvecs.at(0)[1];  
+            new_tvec[0] = tvecs.at(0)[2];
+            new_tvec[1] = tvecs.at(0)[0];
+            new_tvec[2] = tvecs.at(0)[1];
 
             cv::Rodrigues(new_rvec, rotation_matrix);
             cv::Mat inverted_rotation_matrix = rotation_matrix.t();
@@ -284,41 +287,74 @@ private:
         cv::waitKey(1);
     }
 
+    void getFrame(cv::Mat &frame, std::shared_ptr<cv::VideoCapture> cap)
+    {
+        try
+        {
+            cap->read(frame);
+        }
+        catch (cv::Exception e)
+        {
+            RCLCPP_INFO_STREAM(this->get_logger(), "Error reading frame");
+        }
+    }
+    void getFrameWrapper(cv::Mat &frame, std::shared_ptr<cv::VideoCapture> cap)
+    {
+        std::mutex m;
+        std::condition_variable cv;
+
+        std::thread t([&cv, &frame, &cap, this]()
+                      {
+                          getFrame(frame, cap);
+                          cv.notify_one(); });
+
+        t.detach();
+
+        {
+            std::unique_lock<std::mutex> l(m);
+            if (cv.wait_for(l, 1s) == std::cv_status::timeout)
+                throw std::runtime_error("Timeout");
+        }
+    }
+
     void timer_callback()
     {
         cv::Mat frame;
-        std::vector<int> set_params;
-        set_params.push_back(cv::CAP_PROP_OPEN_TIMEOUT_MSEC);
-        set_params.push_back(1000);
 
-        const std::vector<int> params = set_params;
-
-        bool success = true;
-        if (!cap.get()->isOpened())
+        if (!cap.get()->isOpened() && !camFailed)
         {
             try
             {
                 std::cout << "Connecting to camera " << camera_index << std::endl;
-                cap.get()->open(rtsp_url, 0, params);
+                cap.get()->open(rtsp_url, cv::CAP_FFMPEG);
 
                 std::cout << "Connected successfully to camera " << camera_index << std::endl;
-                success = true;
             }
             catch (std::exception e)
             {
 
                 RCLCPP_INFO_STREAM(this->get_logger(), "Camera " << camera_index << " failed to connect. Trying Again");
                 rclcpp::sleep_for(1s);
-                success = false;
             }
         }
 
-        if (success)
+        else if(!camFailed)
         {
 
-            cap.get()->read(frame);
-            // calibrate_camera(frame);
-            detect_pose(frame);
+            try
+            {
+                getFrameWrapper(frame, cap);
+                detect_pose(frame);
+            }
+            catch (std::runtime_error &e)
+            {
+                RCLCPP_INFO_STREAM(this->get_logger(), "Camera " << camera_index << " failed to get frame. Reconnecting");
+                // cap->release();
+                RCLCPP_INFO_STREAM(this->get_logger(), "Camera " << camera_index << "opened status: " << cap->isOpened());
+
+
+                camFailed = true;
+            }
         }
     }
 
@@ -337,6 +373,8 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_publisher_;
     size_t count_;
+
+    bool camFailed = false;
 
     std::shared_ptr<cv::VideoCapture> cap;
     std::string rtsp_url;
