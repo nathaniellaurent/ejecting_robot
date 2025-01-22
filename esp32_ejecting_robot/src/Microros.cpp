@@ -28,10 +28,11 @@ std::shared_ptr<MPU6500_WE> Microros::myMPU6500;
 Motor Microros::motor1 = Motor(AIN1, AIN2);
 Motor Microros::motor2 = Motor(BIN1, BIN2);
 
-void Microros::setup()
+void Microros::setup(std::shared_ptr<MPU6500_WE> passedMPU)
 {
+    Error::display_error(1);
 
-    myMPU6500 = std::make_shared<MPU6500_WE>(MPU6500_WE(MPU6500_ADDR));
+    myMPU6500 = passedMPU;
 
     buttons_msg.data.capacity = 17;
     buttons_msg.data.size = 0;
@@ -61,12 +62,14 @@ void Microros::setup()
 
     delay(250);
     allocator = rcl_get_default_allocator();
-
+    Serial.println("Before support init");
     // create init_options
     while (rclc_support_init(&support, 0, NULL, &allocator) != RCL_RET_OK)
     {
         delay(1000);
     }
+    Serial.println("After support init");
+
     Error::display_error(2);
 
     // create node
@@ -279,7 +282,7 @@ void Microros::setup()
 void Microros::timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 {
     RCLC_UNUSED(last_call_time);
-    Serial.println("Timer callback called");
+    // Serial.println("Timer callback called");
     if (timer != NULL)
     {
         xyzFloat gValue = myMPU6500->getGValues();
@@ -327,7 +330,7 @@ void Microros::timer_callback(rcl_timer_t *timer, int64_t last_call_time)
 
 void Microros::axes_callback(const void *msgin)
 {
-    Serial.println("Callback axes called");
+    // Serial.println("Callback axes called");
     const std_msgs__msg__Float32MultiArray *axes_msg = (const std_msgs__msg__Float32MultiArray *)msgin;
     float *axes = axes_msg->data.data;
 
@@ -335,8 +338,8 @@ void Microros::axes_callback(const void *msgin)
     float rightStick = axes[3] / 0.72;
 
     std::string printString1 = "leftStick: " + std::to_string(leftStick);
-    Serial.println(leftStick);
-    Serial.println(rightStick);
+    // Serial.println(leftStick);
+    // Serial.println(rightStick);
 
     if (leftStick > 1)
     {
@@ -364,10 +367,10 @@ void Microros::axes_callback(const void *msgin)
 
 void Microros::buttons_callback(const void *msgin)
 {
-    Serial.println("Callback buttons called");
+    // Serial.println("Callback buttons called");
     const std_msgs__msg__Int32MultiArray *buttons_msg = (const std_msgs__msg__Int32MultiArray *)msgin;
     int32_t *buttons = buttons_msg->data.data;
-    Serial.println("Publishing: " + buttons[0]);
+    // Serial.println("Publishing: " + buttons[0]);
 
     if (buttons[0] == 1)
     {
@@ -415,4 +418,65 @@ bool Microros::ping()
 
         return true;
     }
+}
+
+void Microros::shutdown()
+{
+
+    // rcl_publisher_t Microros::resultG_publisher;
+    // rcl_publisher_t Microros::accel_publisher;
+    // rcl_publisher_t Microros::gyro_publisher;
+    // rcl_publisher_t Microros::out_publisher;
+    // rcl_subscription_t Microros::buttons_subscription;
+    // rcl_subscription_t Microros::axes_subscription;
+
+    // std_msgs__msg__Int32MultiArray Microros::buttons_msg;
+    // std_msgs__msg__Float32MultiArray Microros::axes_msg;
+    // rclc_executor_t Microros::timer_executor;
+
+    // rclc_executor_t Microros::buttons_executor;
+    // rclc_executor_t Microros::axes_executor;
+    // rclc_support_t Microros::support;
+    // rcl_allocator_t Microros::allocator;
+    // rcl_node_t Microros::node;
+    // rcl_timer_t Microros::timer;
+
+    RCSOFTCHECK(rclc_executor_fini(&timer_executor));
+    RCSOFTCHECK(rclc_executor_fini(&buttons_executor));
+    RCSOFTCHECK(rclc_executor_fini(&axes_executor));
+
+    RCSOFTCHECK(rcl_timer_fini(&timer));
+
+    Error::display_error(1);
+
+    RCSOFTCHECK(rcl_publisher_fini(&resultG_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&accel_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&gyro_publisher, &node));
+    RCSOFTCHECK(rcl_publisher_fini(&out_publisher, &node));
+    Error::display_error(2);
+
+    RCSOFTCHECK(rcl_subscription_fini(&buttons_subscription, &node));
+    RCSOFTCHECK(rcl_subscription_fini(&axes_subscription, &node));
+    Error::display_error(3);
+
+    RCSOFTCHECK(rcl_node_fini(&node));
+
+    RCSOFTCHECK(rclc_support_fini(&support));
+
+    std_msgs__msg__Int32MultiArray__fini(&buttons_msg);
+    std_msgs__msg__Float32MultiArray__fini(&axes_msg);
+    std_msgs__msg__Float32__fini(&resultG_msg_float);
+    geometry_msgs__msg__Vector3__fini(&accel_msg);
+    geometry_msgs__msg__Vector3__fini(&gyro_msg);
+    std_msgs__msg__Int32__fini(&out_msg);
+
+    Error::display_error(4);
+
+    // free(buttons_msg.data.data);
+    // free(buttons_msg.layout.dim.data[0].label.data);
+    // free(buttons_msg.layout.dim.data);
+
+    // free(axes_msg.data.data);
+    // free(axes_msg.layout.dim.data[0].label.data);
+    // free(axes_msg.layout.dim.data);
 }

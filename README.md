@@ -32,7 +32,7 @@ ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/serial/by-id/usb-Sili
 To start wifi:
 
 ```bash
-wihotspot
+sudo create_ap -n wlp0s20f3 robotWifi ce53432524
 ```
 
 To run wifi agent:

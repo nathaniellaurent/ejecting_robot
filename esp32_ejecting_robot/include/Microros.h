@@ -14,7 +14,6 @@
 #include <std_msgs/msg/float32_multi_array.h>
 #include <geometry_msgs/msg/vector3.h>
 
-#define MPU6500_ADDR 0x68
 
 #define AIN1 12
 #define AIN2 13
@@ -40,7 +39,7 @@
 // Error handle loop
 
 
-const IPAddress agent_ip(192, 168, 193, 195);
+const IPAddress agent_ip(192, 168, 19, 195);
 const size_t agent_port = 8888;
 
 const char ssid[] = "Pixel_5317";
@@ -53,9 +52,10 @@ public:
     static void timer_callback(rcl_timer_t *timer, int64_t last_call_time);
     static void axes_callback(const void *msgin);
     static void buttons_callback(const void *msgin);
-    static void setup();
+    static void setup(std::shared_ptr<MPU6500_WE> passedMPU);
     static void spin_nodes();
     static bool ping();
+    static void shutdown();
 
     static std::shared_ptr<MPU6500_WE> myMPU6500;
 

@@ -17,11 +17,16 @@
 #include <Deneyap_Servo.h>
 #include <Arduino.h>
 
-
 #include "Microros.h"
 
+#define MPU6500_ADDR 0x68
+
+
 unsigned long lastPing = millis();
+unsigned long lastSuccess = millis();
 bool currentStatus = true;
+
+std::shared_ptr<MPU6500_WE> myMPU6500;
 
 void setup()
 {
@@ -29,7 +34,7 @@ void setup()
 
     pinMode(32, OUTPUT);
     digitalWrite(32, HIGH);
-    
+
     Wire.begin(23, 22);
     // Configure serial transport
     Serial.begin(115200);
@@ -39,30 +44,48 @@ void setup()
 
     Serial.println("Starting micro_ros...");
 
-    Microros::setup();
+    myMPU6500 = std::make_shared<MPU6500_WE>(MPU6500_WE(MPU6500_ADDR));
 
-    
 
+    Microros::setup(myMPU6500);
 }
 
 void loop()
 {
     delay(1);
-    if(millis() - lastPing > 1000)
+    if (millis() - lastPing > 3000)
     {
         lastPing = millis();
-        if(Microros::ping())
+        Serial.println("Pinging agent...");
+        if (Microros::ping())
         {
+            currentStatus = true;
+            lastSuccess = millis();
+
             Microros::spin_nodes();
         }
-        else{
-            currentStatus = true;
+        else
+        {
+            currentStatus = false;
         }
     }
-    else if(currentStatus = true){
+    else if (currentStatus == true)
+    {
         Microros::spin_nodes();
     }
 
+    if (millis() - lastSuccess > 5000)
+    {
+        Serial.println("Stopping micro_ros...");
+        Error::display_error(14);
+        Microros::shutdown();
+        delay(1000);
+        Error::display_error(13);
+        Serial.println("Starting micro_ros...");
+        Microros::setup(myMPU6500);
+        lastPing = millis();
+        lastSuccess = millis();
+    }
 
     //   Serial.println("Acceleration in g (x,y,z):");
     //   Serial.print(gValue.x);

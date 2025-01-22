@@ -18,7 +18,7 @@
         namespace="camera_publisher_0" output = "screen">
             <param name="camera_index" value="0"/>
        
-        <param name="rstp_url" value="http://192.168.193.62:81/stream"/>
+        <param name="rstp_url" value="http://192.168.19.62:81/stream"/>
 
         </node> 
 
