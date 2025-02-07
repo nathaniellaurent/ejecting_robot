@@ -1,3 +1,6 @@
+#ifndef MOTOR_H 
+#define MOTOR_H 
+
 #include <Arduino.h>
 
 #define sleepPin 33
@@ -15,3 +18,5 @@ class Motor{
 
 
 };
+
+#endif // MOTOR_H

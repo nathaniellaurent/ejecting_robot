@@ -1,3 +1,7 @@
+#ifndef MICROROS_H 
+#define MICROROS_H 
+
+
 #include "Error.h"
 #include "Motor.h"
 #include <micro_ros_platformio.h>
@@ -15,10 +19,7 @@
 #include <geometry_msgs/msg/vector3.h>
 
 
-#define AIN1 12
-#define AIN2 13
-#define BIN1 16
-#define BIN2 17
+
 
 #define RCCHECK(fn)                  \
     {                                \
@@ -39,7 +40,7 @@
 // Error handle loop
 
 
-const IPAddress agent_ip(192, 168, 19, 195);
+const IPAddress agent_ip(192, 168, 74, 195);
 const size_t agent_port = 8888;
 
 const char ssid[] = "Pixel_5317";
@@ -52,7 +53,7 @@ public:
     static void timer_callback(rcl_timer_t *timer, int64_t last_call_time);
     static void axes_callback(const void *msgin);
     static void buttons_callback(const void *msgin);
-    static void setup(std::shared_ptr<MPU6500_WE> passedMPU);
+    static void setup(std::shared_ptr<MPU6500_WE> passedMPU, std::shared_ptr<Motor>  passedMotor1, std::shared_ptr<Motor>  passedMotor2);
     static void spin_nodes();
     static bool ping();
     static void shutdown();
@@ -85,6 +86,9 @@ private:
     static rcl_node_t node;
     static rcl_timer_t timer;
 
-    static Motor motor1;
-    static Motor motor2;
+    static std::shared_ptr<Motor> motor1;
+    static std::shared_ptr<Motor> motor2;
 };
+
+
+#endif // MICROROS_H

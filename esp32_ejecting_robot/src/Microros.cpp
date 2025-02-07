@@ -25,12 +25,15 @@ rcl_timer_t Microros::timer;
 
 std::shared_ptr<MPU6500_WE> Microros::myMPU6500;
 
-Motor Microros::motor1 = Motor(AIN1, AIN2);
-Motor Microros::motor2 = Motor(BIN1, BIN2);
+std::shared_ptr<Motor> Microros::motor1;
+std::shared_ptr<Motor> Microros::motor2;
 
-void Microros::setup(std::shared_ptr<MPU6500_WE> passedMPU)
+void Microros::setup(std::shared_ptr<MPU6500_WE> passedMPU, std::shared_ptr<Motor> passedMotor1, std::shared_ptr<Motor>  passedMotor2)
 {
     Error::display_error(1);
+
+    motor1 = passedMotor1;
+    motor2 = passedMotor2;
 
     myMPU6500 = passedMPU;
 
@@ -359,8 +362,8 @@ void Microros::axes_callback(const void *msgin)
         rightStick = -1;
     }
 
-    motor1.setSpeed(leftStick);
-    motor2.setSpeed(rightStick);
+    motor1->setSpeed(leftStick);
+    motor2->setSpeed(rightStick);
 
     // myservo.write(90*axes[0]/0.75+ 90);
 }

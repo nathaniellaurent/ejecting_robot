@@ -321,7 +321,7 @@ private:
     {
         cv::Mat frame;
 
-        if (!cap.get()->isOpened() && !camFailed)
+        if (!cap.get()->isOpened())
         {
             try
             {
@@ -338,7 +338,7 @@ private:
             }
         }
 
-        else if(!camFailed)
+        else if (!camFailed)
         {
 
             try
@@ -352,10 +352,20 @@ private:
                 // cap->release();
                 RCLCPP_INFO_STREAM(this->get_logger(), "Camera " << camera_index << "opened status: " << cap->isOpened());
 
-
                 camFailed = true;
             }
         }
+        // try
+        // {
+        //     getFrameWrapper(frame, cap);
+        //     detect_pose(frame);
+        // }
+        // catch (std::runtime_error &e)
+        // {
+        //     RCLCPP_INFO_STREAM(this->get_logger(), "Camera " << camera_index << " failed to get frame. Reconnecting");
+        //     // cap->release();
+        //     RCLCPP_INFO_STREAM(this->get_logger(), "Camera " << camera_index << "opened status: " << cap->isOpened());
+        // }
     }
 
     std::vector<cv::Point2f> corner_pts;

@@ -1,3 +1,6 @@
+#ifndef ERROR_H 
+#define ERROR_H 
+
 #include <Arduino.h>
 
 const int errorPin1 = 21;
@@ -16,3 +19,5 @@ public:
     static void ledOn();
     static void ledOff();
 };
+
+#endif // ERROR_H
