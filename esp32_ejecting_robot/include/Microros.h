@@ -40,7 +40,7 @@
 // Error handle loop
 
 
-const IPAddress agent_ip(192, 168, 74, 195);
+const IPAddress agent_ip(192, 168, 148, 195);
 const size_t agent_port = 8888;
 
 const char ssid[] = "Pixel_5317";

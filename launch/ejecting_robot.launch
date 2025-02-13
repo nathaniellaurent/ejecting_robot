@@ -1,7 +1,7 @@
 <launch>
-    <arg name="run_cameras" default="false" />
+    <arg name="run_cameras" default="true" />
     <!-- Set to wifi or serial -->
-    <arg name="run_MPU" default='wifi' />
+    <arg name="run_MPU" default='false' />
     <arg name="run_teleop" default='true' />
 
     <arg name="run_rqt" default='false' />
@@ -18,7 +18,7 @@
         namespace="camera_publisher_0" output = "screen">
             <param name="camera_index" value="0"/>
        
-        <param name="rstp_url" value="http://192.168.82.62:81/stream"/>
+        <param name="rstp_url" value="http://192.168.148.62:81/stream"/>
 
         </node> 
 

@@ -23,7 +23,7 @@
 
 #define MPU6500_ADDR 0x68
 
-#define USE_WIFI 1
+#define USE_WIFI 0
 
 #define AIN1 12
 #define AIN2 13
@@ -33,6 +33,11 @@
 unsigned long lastPing = millis();
 unsigned long lastSuccess = millis();
 bool currentStatus = true;
+bool armed = false;
+bool trueArmed = false;
+unsigned long firstActionTime = 0;
+unsigned long secondActionTime = 0;
+bool secondActivated = false;
 
 std::shared_ptr<MPU6500_WE> myMPU6500;
 std::shared_ptr<Motor> motor1;
@@ -41,8 +46,8 @@ std::shared_ptr<Motor> motor2;
 void setup()
 {
     //   Serial.begin(115200);
-    motor1 = std::make_shared<Motor>(Motor(AIN1, AIN2));
-    motor2 = std::make_shared<Motor>(Motor(BIN1, BIN2));
+    motor1 = std::make_shared<Motor>(Motor(AIN2, AIN1));
+    motor2 = std::make_shared<Motor>(Motor(BIN2, BIN1));
 
     pinMode(32, OUTPUT);
     digitalWrite(32, HIGH);
@@ -104,8 +109,6 @@ void loop()
 
     delay(1);
 
-
-
     if (USE_WIFI)
     {
 
@@ -146,29 +149,111 @@ void loop()
         }
     }
 
-    else{
+    else
+    {
 
         xyzFloat gValue = myMPU6500->getGValues();
         xyzFloat gyr = myMPU6500->getGyrValues();
         float temp = myMPU6500->getTemperature();
         float resultantG = myMPU6500->getResultantG(gValue);
 
-        Serial.println(gValue.z);
-        
+        // Serial.println(gValue.z);
 
-        if(gValue.z < 0.2){
-            if(!Demo::isDemoRunning()){
-            Demo::startDemo();
+        if (armed)
+        {
+            Error::ledOn();
+        }
+        else
+        {
+            Error::ledOff();
+        }
+
+        if (!Demo::isDemoRunning())
+        {
+            if (gyr.z > 200)
+            {
+                firstActionTime = millis();
             }
-            
+            if (gyr.z < -200 && millis() < firstActionTime + 300)
+            {
+                secondActionTime = millis();
+                secondActivated = true;
+            }
+            if (gyr.z > 200 && millis() < secondActionTime + 300 && secondActivated)
+            {
+                armed = true;
+                trueArmed = true;
+                Demo::trueActivate();
+                secondActivated = false;
+            }
+            else if (millis() > secondActionTime + 300 && secondActivated)
+            {
+                armed = true;
+                if (!trueArmed)
+                {
+                    Demo::activate();
+                }
+                else{
+                    Demo::trueActivate();
+                }
+                secondActivated = false;
+            }
         }
-        if(gyr.z > 200){
-            Demo::stopDemo();
-        }
-        Demo::spin();
-    
 
-        
+        if (armed)
+        {
+            if (resultantG < 0.2)
+            {
+                if (!Demo::isDemoRunning())
+                {
+                    Demo::startDemo();
+                    armed = false;
+                }
+            }
+        }
+        if (gyr.z > 200 && !trueArmed)
+        {
+            Demo::stopDemo();
+            armed = false;
+            Error::ledOff();
+        }
+
+        if (Demo::spin())
+        {
+            trueArmed = false;
+        }
+        Serial.print("armed: ");
+        Serial.println(armed);
+        Serial.print("trueArmed: ");
+        Serial.println(trueArmed);
+        Serial.print("firstActionTime: ");
+        Serial.println(firstActionTime);
+        Serial.print("secondActionTime: ");
+        Serial.println(secondActionTime);
+        Serial.print("secondActivated: ");
+        Serial.println(secondActivated);
+        Serial.print("currentStatus: ");
+        Serial.println(currentStatus);
+        Serial.print("lastPing: ");
+        Serial.println(lastPing);
+        Serial.print("lastSuccess: ");
+        Serial.println(lastSuccess);
+        Serial.print("gValue.x: ");
+        Serial.println(gValue.x);
+        Serial.print("gValue.y: ");
+        Serial.println(gValue.y);
+        Serial.print("gValue.z: ");
+        Serial.println(gValue.z);
+        Serial.print("gyr.x: ");
+        Serial.println(gyr.x);
+        Serial.print("gyr.y: ");
+        Serial.println(gyr.y);
+        Serial.print("gyr.z: ");
+        Serial.println(gyr.z);
+        Serial.print("temp: ");
+        Serial.println(temp);
+        Serial.print("resultantG: ");
+        Serial.println(resultantG);
     }
 
     //   Serial.println("Acceleration in g (x,y,z):");

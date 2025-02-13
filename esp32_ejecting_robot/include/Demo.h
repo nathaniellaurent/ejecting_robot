@@ -11,8 +11,10 @@ class Demo
         static void setup(std::shared_ptr<Motor> passedMotor1, std::shared_ptr<Motor>  passedMotor2);
         static void startDemo();
         static void stopDemo();
-        static void spin();
+        static bool spin();
         static bool isDemoRunning();
+        static void activate();
+        static void trueActivate();
 
     private:
         static std::shared_ptr<Motor> motor1;
